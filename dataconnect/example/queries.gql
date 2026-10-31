@@ -1,0 +1,83 @@
+query GetMyUser @auth(level: USER) {
+  user(key: {id_expr: "auth.uid"}) {
+    email
+    displayName
+    createdAt
+  }
+}
+
+query ListMyCollections @auth(level: USER) {
+  collections(where: {userId: {eq_expr: "auth.uid"}}) {
+    id
+    title
+    status
+    createdAt
+  }
+}
+
+query ListAllTags @auth(level: PUBLIC, insecureReason: "Tags are intended to be public classification labels for collections.") {
+  tags {
+    id
+    name
+  }
+}
+
+mutation CreateUser($email: String!, $displayName: String) @auth(level: USER) {
+  user_upsert(data: {
+    id_expr: "auth.uid",
+    email: $email,
+    displayName: $displayName,
+    createdAt_expr: "request.time"
+  })
+}
+
+mutation CreateCollection($title: String!, $status: String!, $description: String) @auth(level: USER) {
+  collection_insert(data: {
+    title: $title,
+    status: $status,
+    description: $description,
+    userId_expr: "auth.uid",
+    createdAt_expr: "request.time"
+  })
+}
+
+mutation UpdateCollection($id: UUID!, $title: String, $status: String) @auth(level: USER) {
+  collection_update(key: {id: $id}, data: {
+    title: $title,
+    status: $status
+  })
+}
+
+mutation DeleteCollection($id: UUID!) @auth(level: USER) {
+  collection_delete(key: {id: $id})
+}
+
+mutation CreateTabItem($url: String!, $title: String!, $collectionId: UUID!) @auth(level: USER) {
+  tabItem_insert(data: {
+    url: $url,
+    title: $title,
+    isCompleted: false,
+    collectionId: $collectionId
+  })
+}
+
+mutation UpdateTabItem($id: UUID!, $isCompleted: Boolean!) @auth(level: USER) {
+  tabItem_update(key: {id: $id}, data: {
+    isCompleted: $isCompleted
+  })
+}
+
+mutation DeleteTabItem($id: UUID!) @auth(level: USER) {
+  tabItem_delete(key: {id: $id})
+}
+
+mutation CreateTag($name: String!) @auth(level: USER) {
+  tag_insert(data: {
+    name: $name,
+    userId_expr: "auth.uid"
+  })
+}
+
+mutation DeleteTag($id: UUID!) @auth(level: USER) {
+  tag_delete(key: {id: $id})
+}

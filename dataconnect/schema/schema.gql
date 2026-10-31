@@ -1,0 +1,31 @@
+type User @table {
+  email: String!
+  createdAt: Timestamp!
+  displayName: String
+}
+
+type Collection @table {
+  title: String!
+  createdAt: Timestamp!
+  status: String!
+  description: String
+  user: User!
+}
+
+type TabItem @table {
+  url: String!
+  title: String!
+  isCompleted: Boolean!
+  notes: String
+  collection: Collection!
+}
+
+type Tag @table {
+  name: String!
+  user: User!
+}
+
+type CollectionTag @table(key: ["collection", "tag"]) {
+  collection: Collection!
+  tag: Tag!
+}

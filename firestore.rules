@@ -1,107 +1,19 @@
 rules_version = '2';
 
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: roles      Document ID: lowercase Google email
-//   - member: string (required) - id of the linked members doc
-//   - role: 'admin' | 'contributor' (required)
-//
-// Collection: members    Document ID: auto
-//   - name: string (required, 1-80 chars)
-//   - created: number (required)
-//
-// Collection: meals      Document ID: auto
-//   - date, place, payer: string
-//   - attendees, items, extras: list
-//   - total, created: number
-//   - uid: string - creator's auth uid (immutable; legacy meals may lack it)
-//
-// Collection: payments   Document ID: auto
-//   - from, to, date: string (required); note, meal: string (optional)
-//   - amount: number > 0 (required); created: number (required)
-//
-// ===============================================================
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null && request.auth.token.email_verified == true;
-    }
-    function email() {
-      return request.auth.token.email.lower();
-    }
-    function roleDoc() {
-      return /databases/$(database)/documents/roles/$(email());
-    }
-    function isUser() {
-      return signedIn() && exists(roleDoc());
-    }
-    function isAdmin() {
-      return isUser() && get(roleDoc()).data.role == 'admin';
-    }
-    function myMember() {
-      return get(roleDoc()).data.member;
-    }
-
-    function isValidRole(d) {
-      return d.keys().hasOnly(['member', 'role']) && d.keys().hasAll(['member', 'role'])
-        && d.member is string && d.role in ['admin', 'contributor'];
-    }
-    function isValidMember(d) {
-      return d.keys().hasOnly(['name', 'created']) && d.keys().hasAll(['name', 'created'])
-        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
-        && d.created is number;
-    }
-    function isValidMeal(d) {
-      return d.keys().hasOnly(['date', 'place', 'payer', 'attendees', 'items', 'extras', 'total', 'created', 'uid'])
-        && d.keys().hasAll(['date', 'place', 'payer', 'attendees', 'items', 'extras', 'total'])
-        && d.date is string && d.place is string && d.place.size() <= 200
-        && d.payer is string && d.attendees is list && d.attendees.size() <= 100
-        && d.items is list && d.items.size() <= 300
-        && d.extras is list && d.extras.size() <= 50
-        && d.total is number;
-    }
-    function isValidPayment(d) {
-      return d.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal'])
-        && d.keys().hasAll(['from', 'to', 'amount', 'date', 'created'])
-        && d.from is string && d.to is string && d.from != d.to
-        && d.amount is number && d.amount > 0
-        && d.date is string && d.created is number
-        && (!('note' in d) || (d.note is string && d.note.size() <= 200))
-        && (!('meal' in d) || d.meal is string);
-    }
-
-    match /roles/{e} {
-      allow read: if isAdmin() || (signedIn() && e == email());
-      allow create, update: if isAdmin() && isValidRole(request.resource.data);
-      allow delete: if isAdmin() && e != email();
-    }
-
-    match /members/{id} {
-      allow read: if isUser();
-      allow create, update: if isAdmin() && isValidMember(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /meals/{id} {
-      allow read: if isUser();
-      allow create: if isUser() && isValidMeal(request.resource.data)
-        && request.resource.data.uid == request.auth.uid;
-      allow update: if isValidMeal(request.resource.data) && (
-        isAdmin()
-        || (isUser() && resource.data.get('uid', '') == request.auth.uid
-            && request.resource.data.get('uid', '') == request.auth.uid));
-      allow delete: if isAdmin() || (isUser() && resource.data.get('uid', '') == request.auth.uid);
-    }
-
-    match /payments/{id} {
-      allow read: if isUser();
-      allow create: if isUser() && isValidPayment(request.resource.data)
-        && (isAdmin() || request.resource.data.to == myMember());
-      allow delete: if isAdmin() || (isUser() && resource.data.to == myMember());
+    // This rule allows anyone with your Firestore database reference to view, edit,
+    // and delete all data in your Firestore database. It is useful for getting
+    // started, but it is configured to expire after 30 days because it
+    // leaves your app open to attackers. At that time, all client
+    // requests to your Firestore database will be denied.
+    //
+    // Make sure to write security rules for your app before that time, or else
+    // all client requests to your Firestore database will be denied until you Update
+    // your rules
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 12, 1);
     }
   }
 }

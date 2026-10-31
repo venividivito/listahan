@@ -1,0 +1,27 @@
+mutation SeedAllData @transaction {
+  user_insertMany(data: [
+    { id: "00000000-0000-0000-0000-000000000001", email: "alice@example.com", createdAt: "2023-01-01T00:00:00Z", displayName: "Alice" },
+    { id: "00000000-0000-0000-0000-000000000002", email: "bob@example.com", createdAt: "2023-01-02T00:00:00Z", displayName: "Bob" },
+    { id: "00000000-0000-0000-0000-000000000003", email: "charlie@example.com", createdAt: "2023-01-03T00:00:00Z", displayName: "Charlie" }
+  ])
+  collection_insertMany(data: [
+    { id: "10000000-0000-0000-0000-000000000001", title: "Travel Ideas", createdAt: "2023-02-01T00:00:00Z", status: "active", userId: "00000000-0000-0000-0000-000000000001" },
+    { id: "10000000-0000-0000-0000-000000000002", title: "Work Projects", createdAt: "2023-02-02T00:00:00Z", status: "archived", userId: "00000000-0000-0000-0000-000000000002" },
+    { id: "10000000-0000-0000-0000-000000000003", title: "Recipes", createdAt: "2023-02-03T00:00:00Z", status: "active", userId: "00000000-0000-0000-0000-000000000003" }
+  ])
+  tabItem_insertMany(data: [
+    { id: "20000000-0000-0000-0000-000000000001", url: "https://maps.google.com", title: "Paris Map", isCompleted: false, collectionId: "10000000-0000-0000-0000-000000000001" },
+    { id: "20000000-0000-0000-0000-000000000002", url: "https://jira.com", title: "Quarterly Planning", isCompleted: true, collectionId: "10000000-0000-0000-0000-000000000002" },
+    { id: "20000000-0000-0000-0000-000000000003", url: "https://allrecipes.com", title: "Pasta Carbonara", isCompleted: false, collectionId: "10000000-0000-0000-0000-000000000003" }
+  ])
+  tag_insertMany(data: [
+    { id: "30000000-0000-0000-0000-000000000001", name: "Vacation", userId: "00000000-0000-0000-0000-000000000001" },
+    { id: "30000000-0000-0000-0000-000000000002", name: "Urgent", userId: "00000000-0000-0000-0000-000000000002" },
+    { id: "30000000-0000-0000-0000-000000000003", name: "Food", userId: "00000000-0000-0000-0000-000000000003" }
+  ])
+  collectionTag_insertMany(data: [
+    { collectionId: "10000000-0000-0000-0000-000000000001", tagId: "30000000-0000-0000-0000-000000000001" },
+    { collectionId: "10000000-0000-0000-0000-000000000002", tagId: "30000000-0000-0000-0000-000000000002" },
+    { collectionId: "10000000-0000-0000-0000-000000000003", tagId: "30000000-0000-0000-0000-000000000003" }
+  ])
+}
