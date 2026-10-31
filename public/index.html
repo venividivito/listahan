@@ -1,89 +1,269 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tab Tracker</title>
+<style>
+:root{--bg:#faf8f4;--card:#fff;--tx:#1f1d1a;--mu:#6f6a62;--ac:#c2410c;--ln:#e7e2d9;--ok:#15803d;--bad:#b91c1c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171513;--card:#211e1b;--tx:#f0ece6;--mu:#a39d93;--ac:#fb923c;--ln:#37332e;--ok:#4ade80;--bad:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171513;--card:#211e1b;--tx:#f0ece6;--mu:#a39d93;--ac:#fb923c;--ln:#37332e;--ok:#4ade80;--bad:#f87171;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:640px;margin:0 auto;padding:14px 12px 80px}
+h1{font-size:22px;margin:4px 0 10px}h2{font-size:16px;margin:0 0 10px}
+nav{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+nav button{flex:1;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px;margin-bottom:12px}
+.sub{border-top:1px dashed var(--ln);padding-top:10px;margin-top:10px}
+button,input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:9px 10px;min-height:42px}
+button{cursor:pointer}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600;width:100%;margin-top:10px}
+nav button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+input,select{width:100%}
+label{display:block;font-size:13px;color:var(--mu);margin-bottom:8px}
+label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
+.row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.row>*{min-width:0}.g2{flex:2}.g1{flex:1}
+.x{flex:none;width:42px;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.chip{padding:6px 12px;min-height:34px;border-radius:99px}
+.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.lb,.mu{font-size:13px;color:var(--mu);margin:6px 0 2px}
+.pr{display:flex;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--ln);align-items:center}
+.pr span:first-child{flex:1}.tt{font-weight:700}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--ln);color:var(--mu)}
+.badge.Settled{color:var(--ok);border-color:var(--ok)}.badge.Unpaid{color:var(--bad);border-color:var(--bad)}.badge.Partial{color:var(--ac);border-color:var(--ac)}
+.hd{display:flex;justify-content:space-between;gap:8px;cursor:pointer;align-items:center}
+.sm{min-height:34px;padding:4px 10px;font-size:14px}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
+#toast.s{opacity:1}
+</style></head>
+<body><div class="w"><h1>🍽️ Tab Tracker</h1><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+/* === PASTE YOUR FIREBASE CONFIG HERE (Firebase console > Project settings > Your apps) === */
+const firebaseConfig={
+ apiKey:"AIzaSyDAM6txs1wGfo5txeVuBoRWoOqGjaEU9Gk",
+ authDomain:"tab-tracker-94932.firebaseapp.com",
+ projectId:"tab-tracker-94932",
+ storageBucket:"tab-tracker-94932.firebasestorage.app",
+ messagingSenderId:"6857630729",
+ appId:"1:6857630729:web:731df10fad6f4f6d0a04d8"
+};
+/* ============================================================================ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+let db=null,members=[],meals=[],pays=[],tab='bal',me='',D=null,expd={},armed='',seenM=false;
+let pay={from:'',to:'',amount:'',note:''},user=null,role=null,roles=[];
+const isAdmin=()=>role?.role==='admin';
+const canMeal=m=>isAdmin()||(!!m.uid&&m.uid===user?.uid);
+const canPayTo=to=>isAdmin()||(!!me&&to===me);
+const nm=id=>(members.find(m=>m.id===id)||{name:'Former member'}).name;
+function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2600)}
+const opts=(ids,cur,blank)=>(blank?`<option value="">${blank}</option>`:'')+ids.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(nm(i))}</option>`).join('');
+const sel=(a,b)=>a===b?'selected':'';
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/13.1.0/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/13.1.0/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/13.1.0/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+/* ---------- calculation ---------- */
+function calc(m){
+ const A=m.attendees||[],S={},E={},L=[];A.forEach(p=>{S[p]=0;E[p]=0});
+ (m.items||[]).forEach(it=>{const ps=(it.people||[]).filter(p=>p in S);if(!ps.length)return;const c=Math.round((+it.price||0)*100)/ps.length;ps.forEach(p=>S[p]+=c)});
+ (m.extras||[]).forEach(x=>{const ps=(x.people||[]).filter(p=>p in S);if(!ps.length)return;
+  const b=ps.reduce((a,p)=>a+S[p],0),v=+x.value||0,amt=(x.type==='pct'?b*v/100:v*100)*(x.sign<0?-1:1);
+  ps.forEach(p=>{const w=(x.mode==='equal'||b===0)?1/ps.length:S[p]/b;E[p]+=amt*w;L.push({p,label:x.label,v:amt*w})})});
+ const f=A.map(p=>S[p]+E[p]),sum=Math.round(f.reduce((a,b)=>a+b,0)),t=f.map(Math.floor);let r=sum-t.reduce((a,b)=>a+b,0);
+ f.map((v,i)=>[v-Math.floor(v),i]).sort((a,b)=>b[0]-a[0]).forEach(([,i])=>{if(r>0){t[i]++;r--}});
+ return{S,E,L,tot:t,sum};
+}
+function ledger(){
+ const pool={},dir={},owed={},paid={},st={};
+ pays.forEach(p=>{const k=p.from+'>'+p.to,c=Math.round(p.amount*100);paid[k]=(paid[k]||0)+c;
+  if(p.meal)dir[p.meal+'|'+p.from]=(dir[p.meal+'|'+p.from]||0)+c;else pool[k]=(pool[k]||0)+c});
+ [...meals].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.created||0)-(b.created||0)).forEach(m=>{
+  const c=calc(m);st[m.id]={};
+  m.attendees.forEach((p,i)=>{if(p===m.payer)return;const k=p+'>'+m.payer,o=c.tot[i];owed[k]=(owed[k]||0)+o;
+   const dd=dir[m.id+'|'+p]||0,d=Math.min(o,dd);pool[k]=(pool[k]||0)+(dd-d);
+   const x=Math.min(o-d,pool[k]);pool[k]-=x;st[m.id][p]={o,paid:d+x}})});
+ const rows=[];
+ members.forEach((a,i)=>members.slice(i+1).forEach(b=>{
+  const n=((owed[a.id+'>'+b.id]||0)-(paid[a.id+'>'+b.id]||0))-((owed[b.id+'>'+a.id]||0)-(paid[b.id+'>'+a.id]||0));
+  if(n>0)rows.push({d:a.id,c:b.id,n});else if(n<0)rows.push({d:b.id,c:a.id,n:-n})}));
+ return{st,rows};
+}
+const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—':r.every(x=>x.paid>=x.o)?'Settled':r.some(x=>x.paid>0)?'Partial':'Unpaid'};
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
-    </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
+/* ---------- navigation ---------- */
+function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Meals'],['new','＋ Meal'],['people','People']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function tog(k){expd[k]=!expd[k];draw()}
+function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
+function draw(){nav();$('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv()}
+function onData(){if(tab!=='new')draw()}
+function arm(k,fn){if(armed!==k){armed=k;draw();setTimeout(()=>{if(armed===k){armed='';if(tab!=='new')draw()}},3000);return}armed='';fn()}
+const dlabel=(k,t)=>armed===k?'Tap again to confirm':t;
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+/* ---------- balances ---------- */
+let bp=null;
+const newest=(a,b)=>(b.date||'').localeCompare(a.date||'')||(b.created||0)-(a.created||0);
+const owes=(L,id)=>L.rows.filter(r=>r.d===id).reduce((a,r)=>a+r.n,0);
+const owedTo=(L,id)=>L.rows.filter(r=>r.c===id).reduce((a,r)=>a+r.n,0);
+function det(m,p){const c=calc(m),i=m.attendees.indexOf(p);let h='';
+ m.items.forEach(it=>{if(it.people.includes(p)){const n=it.people.length;h+=`<div class="pr"><span>${esc(it.name||'Item')}${n>1?` <span class="mu">(1/${n} of ${peso(it.price*100)})</span>`:''}</span><span>${peso(it.price*100/n)}</span></div>`}});
+ c.L.filter(l=>l.p===p).forEach(l=>{h+=`<div class="pr"><span>${esc(l.label||'Extra')}</span><span class="${l.v<0?'ok':''}">${peso(l.v)}</span></div>`});
+ return h+`<div class="pr tt"><span>Total</span><b>${peso(c.tot[i])}</b></div>`}
+function vBal(){
+ const L=ledger(),ids=members.map(m=>m.id);
+ if(!ids.length)return '<div class="card">Start by adding your teammates under <b>People</b>.</div>';
+ if(bp&&ids.includes(bp))return vPerson(L,bp);
+ let h='';
+ if(me&&ids.includes(me)){h+=`<div class="card"><h2>${esc(nm(me))}, your summary</h2><div class="pr"><span>You owe</span><b class="${owes(L,me)?'bad':''}">${peso(owes(L,me))}</b></div><div class="pr"><span>Owed to you</span><b class="${owedTo(L,me)?'ok':''}">${peso(owedTo(L,me))}</b></div></div>`}
+ const list=ids.map(id=>({id,net:owedTo(L,id)-owes(L,id)})).sort((a,b)=>Math.abs(b.net)-Math.abs(a.net));
+ h+=`<div class="card"><h2>Balances</h2><div class="mu">Tap a name to see their breakdown and record payments.</div>`+list.map(x=>`<div class="pr hd" onclick="openP('${x.id}')"><span><b>${esc(nm(x.id))}</b></span><span class="${x.net<0?'bad':x.net>0?'ok':'mu'}">${x.net<0?'owes '+peso(-x.net):x.net>0?'is owed '+peso(x.net):'settled'}</span><span class="mu">›</span></div>`).join('')+'</div>';
+ const ps=[...pays].sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,10);
+ if(ps.length)h+=`<div class="card"><h2>Recent payments</h2>`+ps.map(payRow).join('')+'</div>';
+ return h;
+}
+const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span></span><b>${peso(Math.round(p.amount*100))}</b>${canPayTo(p.to)?`<button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button>`:''}</div>`;
+function openP(id){bp=id;const r=ledger().rows.filter(x=>canPayTo(x.c));const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
+ pay=o?{from:o.d,to:o.c,amount:(o.n/100).toFixed(2),note:''}:{from:'',to:isAdmin()?'':me,amount:'',note:''};draw();scrollTo(0,0)}
+function mrow({m,p,r}){const k=m.id+p,left=r.o-r.paid,st=left<=0?'Settled':r.paid>0?'Partial':'Unpaid';
+ return `<div class="sub"><div class="hd" onclick="tog('${k}')"><div><b>${esc(m.place||'Meal')}</b><div class="mu">${esc(m.date)} · ${esc(nm(p))} → ${esc(nm(m.payer))}</div></div><div style="text-align:right"><b>${peso(r.o)}</b><br><span class="badge ${st}">${st==='Partial'?'Partial · '+peso(left)+' left':st}</span></div></div>`+
+ (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0&&canPayTo(m.payer)?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
+function vPerson(L,id){
+ const ids=members.map(m=>m.id),ow=L.rows.filter(r=>r.d===id),ot=L.rows.filter(r=>r.c===id);
+ let h=`<button class="sm" onclick="bp=null;draw()">← All balances</button><div class="card" style="margin-top:10px"><h2>${esc(nm(id))}</h2>`;
+ h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button>`:''}</div>`).join('');
+ h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
+ if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
+ h+='<p class="mu">Totals are netted between each pair of people.</p></div>';
+ if(isAdmin()||me)h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
+ <div class="row"><input inputmode="decimal" placeholder="Amount ₱" value="${esc(pay.amount)}" oninput="pay.amount=this.value"><input placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" oninput="pay.note=this.value"></div>
+ <button class="pri" onclick="savePay()">Save payment</button></div>`;
+ const mine=[],theirs=[];
+ [...meals].sort(newest).forEach(m=>{const s=L.st[m.id]||{};
+  if(m.payer===id)Object.keys(s).forEach(p=>theirs.push({m,p,r:s[p]}));else if(s[id])mine.push({m,p:id,r:s[id]})});
+ const sortOpen=a=>[...a].sort((x,y)=>((y.r.o-y.r.paid>0)-(x.r.o-x.r.paid>0)));
+ h+=`<div class="card"><h2>Meals ${esc(nm(id))} owes for</h2><div class="mu">Tap a meal to see what was ordered.</div>${mine.length?sortOpen(mine).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
+ h+=`<div class="card"><h2>Meals ${esc(nm(id))} paid for</h2>${theirs.length?sortOpen(theirs).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
+ const hp=pays.filter(p=>p.from===id||p.to===id).sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,15);
+ if(hp.length)h+=`<div class="card"><h2>Payment history</h2>`+hp.map(payRow).join('')+'</div>';
+ return h;
+}
+function setPay(f,t,n){pay={from:f,to:t,amount:(n/100).toFixed(2),note:''};draw();toast('Payment form filled in')}
+async function savePay(){const a=parseFloat(pay.amount);if(!isAdmin())pay.to=me;if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
+ try{await db.collection('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
+const delPay=id=>arm('p'+id,()=>db.collection('payments').doc(id).delete().catch(()=>toast('Could not delete')));
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
-        }
-      });
-    </script>
-  </body>
-</html>
+/* ---------- meals list ---------- */
+function vMeals(){
+ if(!meals.length)return '<div class="card mu">No meals yet. Tap ＋ Meal to add one.</div>';
+ const L=ledger(),names=a=>a.length?a.map(nm).join(', '):'nobody';
+ return [...meals].sort(newest).map(m=>{
+  const c=calc(m),s=status(m,L),o=expd[m.id],every=a=>a.length>1&&a.length===m.attendees.length?'Everyone':names(a);
+  let h=`<div class="card"><div class="hd" onclick="tog('${m.id}')"><div><b>${esc(m.place||'Meal')}</b><div class="mu">${esc(m.date)} · paid by ${esc(nm(m.payer))}</div><div class="mu" style="color:var(--ac)">${o?'▾ Hide breakdown':'▸ View breakdown'}</div></div><div style="text-align:right"><b>${peso(c.sum)}</b><br><span class="badge ${s}">${s}</span></div></div>`;
+  if(o){
+   h+=`<div class="sub"><div class="lb">Orders</div>`+m.items.map(it=>`<div class="pr"><span>${esc(it.name||'Item')}<br><span class="mu">${esc(every(it.people))}</span></span><b>${peso(it.price*100)}</b></div>`).join('');
+   if(m.extras.length){h+=`<div class="lb">Service charge, tax, discounts</div>`+m.extras.map(x=>{const t=calc({...m,extras:[x]}).sum-calc({...m,extras:[]}).sum;
+    return `<div class="pr"><span>${esc(x.label||'Extra')} <span class="mu">(${x.type==='pct'?x.value+'%':peso(x.value*100)}${x.sign<0?' off':''})</span><br><span class="mu">${esc(every(x.people))} · ${x.mode==='equal'?'split equally':'by spending'}</span></span><b class="${t<0?'ok':''}">${peso(t)}</b></div>`}).join('')}
+   h+=`<div class="pr tt"><span>Bill total</span><b>${peso(c.sum)}</b></div>`;
+   if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
+   h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
+    return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
+   (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
+  return h+'</div>'}).join('');
+}
+function msg(m,p){const c=calc(m),i=m.attendees.indexOf(p),ln=[`🍽️ ${m.place||'Meal'} · ${m.date}`];
+ m.items.forEach(it=>{if(it.people.includes(p)){const n=it.people.length;ln.push(`• ${it.name||'Item'}${n>1?` (1/${n} of ${peso(it.price*100)})`:''}: ${peso(it.price*100/n)}`)}});
+ c.L.filter(l=>l.p===p).forEach(l=>ln.push(`• ${l.label||'Extra'}: ${peso(l.v)}`));
+ ln.push(`Total: ${peso(c.tot[i])}. Please pay ${nm(m.payer)}.`);return ln.join('\n')}
+function cp(id,p){const t=msg(meals.find(m=>m.id===id),p);
+ const fb=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('Copied')}catch(e){toast('Copy failed')}a.remove()};
+ navigator.clipboard?.writeText(t).then(()=>toast('Copied')).catch(fb)||fb()}
+async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
+ try{await db.collection('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
+const delMeal=id=>arm('m'+id,()=>db.collection('meals').doc(id).delete().catch(()=>toast('Could not delete')));
+
+/* ---------- add / edit meal ---------- */
+const newDraft=()=>({id:null,date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:''});
+const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
+const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
+function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" onclick="${fn}(${l?`'${l}',${i},`:''}'${id}')">${esc(nm(id))}</button>`).join('')}
+function togA(id){const a=D.attendees;D.attendees=a.includes(id)?a.filter(x=>x!==id):[...a,id];draw()}
+function togL(l,i,id){const x=D[l][i];let ps=eff(x);ps=ps.includes(id)?ps.filter(p=>p!==id):[...ps,id];x.people=ps;x.all=ps.length>1&&ps.length===D.attendees.length;draw()}
+function allL(l,i){const x=D[l][i];x.all=!x.all;x.people=[];draw()}
+function vNew(){
+ const ids=members.map(m=>m.id);if(!ids.length)return '<div class="card">Add your teammates under <b>People</b> first.</div>';
+ const it=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Item" value="${esc(x.name)}" oninput="D.items[${i}].name=this.value"><input class="g1" inputmode="decimal" placeholder="Price" value="${esc(x.price)}" oninput="D.items[${i}].price=this.value;pv()"><button class="x" onclick="D.items.splice(${i},1);draw()">✕</button></div>
+  <div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('items',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','items',i)}</div></div>`;
+ const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Label" value="${esc(x.label)}" oninput="D.extras[${i}].label=this.value;pv()"><input class="g1" inputmode="decimal" placeholder="Value" value="${esc(x.value)}" oninput="D.extras[${i}].value=this.value;pv()"><select style="width:64px" onchange="D.extras[${i}].type=this.value;pv()"><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" onclick="D.extras.splice(${i},1);draw()">✕</button></div>
+  <div class="row"><select onchange="D.extras[${i}].sign=+this.value;pv()"><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select onchange="D.extras[${i}].mode=this.value;pv()"><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
+  <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('extras',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
+ return `<div class="card"><h2>${D.id?'Edit meal':'New meal'}</h2><div class="row"><label class="g1">Date<input type="date" value="${D.date}" oninput="D.date=this.value"></label><label class="g1">Place<input placeholder="Restaurant" value="${esc(D.place)}" oninput="D.place=this.value"></label></div>
+ <label>Who paid?<select onchange="D.payer=this.value">${opts(ids,D.payer,'Choose…')}</select></label>
+ <div class="lb">Who was there?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
+ <div class="card"><h2>Orders</h2><div class="mu">One person = their own order. Pick several (or Everyone) for a shared dish; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
+ <div class="card"><h2>Service charge, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
+ <div class="card"><h2>Breakdown</h2><div class="mu">Orders + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save meal</button></div>`;
+}
+function addX(s){D.extras.push({label:s>0?'Service charge':'Discount',type:'pct',value:s>0?'10':'',sign:s,mode:'prop',all:true,people:[]});draw()}
+function pv(){const el=document.getElementById('pv');if(!el||!D)return;const m=res(),c=calc(m);let h='';
+ m.attendees.forEach((p,i)=>{h+=`<div class="pr"><span>${esc(nm(p))}</span><span class="mu">${peso(c.S[p])} + ${peso(c.E[p])}</span><b>${peso(c.tot[i])}</b></div>`});
+ if(!m.attendees.length)h='<p class="mu">Pick who was there.</p>';else h+=`<div class="pr tt"><span>Total</span><span></span><b>${peso(c.sum)}</b></div>`;
+ const r=Math.round((parseFloat(D.total)||0)*100);
+ if(r){const d=c.sum-r;h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt. Check items and extras.</p>`}
+ const un=m.items.filter(i=>i.price&&!i.people.length).length;if(un)h+=`<p class="bad">${un} item(s) not assigned to anyone.</p>`;
+ el.innerHTML=h}
+async function saveMeal(){
+ if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who was there');
+ const m=res();delete m.id;m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
+ if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
+ if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
+ try{let id=D.id;if(id)await db.collection('meals').doc(id).set(m);else{m.created=Date.now();id=(await db.collection('meals').add(m)).id}
+  expd[id]=true;D=null;tab='meals';draw();toast('Meal saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
+function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
+ if(!canMeal(m))return toast('You can only edit meals you created');
+ D={id,uid:m.uid,created:m.created,date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',
+  items:m.items.map(i=>({name:i.name,price:String(i.price),all:f(i.people),people:[...i.people]})),
+  extras:m.extras.map(x=>({label:x.label,type:x.type,value:String(x.value),sign:x.sign,mode:x.mode,all:f(x.people),people:[...x.people]}))};
+ if(!D.items.length)D.items.push({name:'',price:'',all:false,people:[]});go('new')}
+
+/* ---------- people ---------- */
+function vPeople(){
+ const used=id=>meals.some(m=>m.payer===id||m.attendees.includes(id))||pays.some(p=>p.from===id||p.to===id),ids=members.map(m=>m.id),A=isAdmin();
+ let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${esc(nm(me))} · ${A?'Admin':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
+ <div class="card"><h2>Team</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
+ ${A?'<div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key===\'Enter\')addMember()"><button onclick="addMember()">Add</button></div>':''}</div>`;
+ if(A)h+=`<div class="card"><h2>Access</h2><div class="mu">Google accounts allowed to sign in, and who they are.</div>${roles.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${esc(nm(r.member))} · ${r.role==='admin'?'Admin':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,'Remove')}</button>`}</div>`).join('')}
+ <div class="sub"><input id="re" type="email" placeholder="Google email"><div class="row" style="margin-top:6px"><select id="rm">${opts(ids,'','Person…')}</select><select id="rr"><option value="contributor">Contributor</option><option value="admin">Admin</option></select></div><button onclick="addRole()">Grant access</button></div></div>`;
+ return h}
+async function addRole(){const e=$('#re').value.trim().toLowerCase(),m=$('#rm').value,r=$('#rr').value;if(!/^[^\s'"<>@]+@[^\s'"<>@]+\.[^\s'"<>@]+$/.test(e)||!m)return toast('Enter an email and pick a person');
+ try{await db.collection('roles').doc(e).set({member:m,role:r});toast('Access granted')}catch(x){toast('Could not save')}}
+const delRole=id=>arm('r'+id,()=>db.collection('roles').doc(id).delete().catch(()=>toast('Could not remove')));
+async function addMember(){const v=$('#nn').value.trim();if(!v)return;if(members.some(m=>m.name.toLowerCase()===v.toLowerCase()))return toast('Already added');
+ try{await db.collection('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
+const delMember=id=>arm('u'+id,()=>db.collection('members').doc(id).delete().catch(()=>toast('Could not remove')));
+
+/* ---------- start ---------- */
+(async function(){
+ const fail=()=>{$('#app').innerHTML='<div class="card">Couldn’t connect to Firebase. Check the firebaseConfig at the top of the script and your Firestore rules.</div>'};
+ const t=setTimeout(()=>{if(!db)fail()},10000);
+ try{firebase.initializeApp(firebaseConfig);db=firebase.firestore()}catch(e){db=null}
+ clearTimeout(t);if(!db||firebaseConfig.projectId==='PASTE_PROJECT_ID')return fail();
+ let subs=[];
+ const gate=h=>{$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
+ const sub=(n,f)=>subs.push(db.collection(n).onSnapshot(s=>{f(s.docs.map(d=>({id:d.id,...d.data()})));
+  if(n==='members'&&!seenM){seenM=true;if(!members.length&&isAdmin())tab='people'}onData()},e=>toast('Sync problem: '+(e.code||''))));
+ firebase.auth().onAuthStateChanged(async u=>{
+  subs.forEach(f=>f());subs=[];user=u;role=null;me='';members=[];meals=[];pays=[];roles=[];seenM=false;tab='bal';bp=null;D=null;
+  if(!u)return gate('<h2>Sign in</h2><p class="mu">Use the Google account your admin gave access to.</p><button class="pri" onclick="firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message))">Sign in with Google</button>');
+  try{const r=await db.collection('roles').doc((u.email||'').toLowerCase()).get();role=r.exists?r.data():null}catch(e){role=null}
+  if(!role)return gate(`<h2>No access yet</h2><p class="mu">${esc(u.email)} isn’t on the team. Ask an admin to grant access.</p><button onclick="firebase.auth().signOut()">Sign out</button>`);
+  me=role.member||'';$('#app').innerHTML='<div class="card mu">Loading…</div>';nav();
+  sub('members',v=>members=v.sort((a,b)=>(a.created||0)-(b.created||0)));sub('meals',v=>meals=v);sub('payments',v=>pays=v);
+  if(isAdmin())sub('roles',v=>roles=v);
+ });
+})();
+</script></body></html>
