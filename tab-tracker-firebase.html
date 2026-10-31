@@ -42,6 +42,7 @@ label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
 <body><div class="w"><h1>🍽️ Tab Tracker</h1><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 /* === PASTE YOUR FIREBASE CONFIG HERE (Firebase console > Project settings > Your apps) === */
 const firebaseConfig={
@@ -58,8 +59,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 let db=null,members=[],meals=[],pays=[],tab='bal',me='',D=null,expd={},armed='',seenM=false;
-let pay={from:'',to:'',amount:'',note:''};
-try{me=localStorage.getItem('tt_me')||''}catch(e){}
+let pay={from:'',to:'',amount:'',note:''},user=null,role=null,roles=[];
+const isAdmin=()=>role?.role==='admin';
+const canMeal=m=>isAdmin()||(!!m.uid&&m.uid===user?.uid);
+const canPayTo=to=>isAdmin()||(!!me&&to===me);
 const nm=id=>(members.find(m=>m.id===id)||{name:'Former member'}).name;
 function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2600)}
 const opts=(ids,cur,blank)=>(blank?`<option value="">${blank}</option>`:'')+ids.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(nm(i))}</option>`).join('');
@@ -123,20 +126,20 @@ function vBal(){
  if(ps.length)h+=`<div class="card"><h2>Recent payments</h2>`+ps.map(payRow).join('')+'</div>';
  return h;
 }
-const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span></span><b>${peso(Math.round(p.amount*100))}</b><button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button></div>`;
-function openP(id){bp=id;const r=ledger().rows;const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
- pay=o?{from:o.d,to:o.c,amount:(o.n/100).toFixed(2),note:''}:{from:'',to:'',amount:'',note:''};draw();scrollTo(0,0)}
+const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span></span><b>${peso(Math.round(p.amount*100))}</b>${canPayTo(p.to)?`<button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button>`:''}</div>`;
+function openP(id){bp=id;const r=ledger().rows.filter(x=>canPayTo(x.c));const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
+ pay=o?{from:o.d,to:o.c,amount:(o.n/100).toFixed(2),note:''}:{from:'',to:isAdmin()?'':me,amount:'',note:''};draw();scrollTo(0,0)}
 function mrow({m,p,r}){const k=m.id+p,left=r.o-r.paid,st=left<=0?'Settled':r.paid>0?'Partial':'Unpaid';
  return `<div class="sub"><div class="hd" onclick="tog('${k}')"><div><b>${esc(m.place||'Meal')}</b><div class="mu">${esc(m.date)} · ${esc(nm(p))} → ${esc(nm(m.payer))}</div></div><div style="text-align:right"><b>${peso(r.o)}</b><br><span class="badge ${st}">${st==='Partial'?'Partial · '+peso(left)+' left':st}</span></div></div>`+
- (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
+ (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0&&canPayTo(m.payer)?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
 function vPerson(L,id){
  const ids=members.map(m=>m.id),ow=L.rows.filter(r=>r.d===id),ot=L.rows.filter(r=>r.c===id);
  let h=`<button class="sm" onclick="bp=null;draw()">← All balances</button><div class="card" style="margin-top:10px"><h2>${esc(nm(id))}</h2>`;
- h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b><button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button></div>`).join('');
- h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b><button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button></div>`).join('');
+ h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button>`:''}</div>`).join('');
+ h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
  if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
  h+='<p class="mu">Totals are netted between each pair of people.</p></div>';
- h+=`<div class="card"><h2>Record a payment</h2><div class="row"><select onchange="pay.from=this.value">${opts(ids,pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(ids,pay.to,'To')}</select></div>
+ if(isAdmin()||me)h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
  <div class="row"><input inputmode="decimal" placeholder="Amount ₱" value="${esc(pay.amount)}" oninput="pay.amount=this.value"><input placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" oninput="pay.note=this.value"></div>
  <button class="pri" onclick="savePay()">Save payment</button></div>`;
  const mine=[],theirs=[];
@@ -150,7 +153,7 @@ function vPerson(L,id){
  return h;
 }
 function setPay(f,t,n){pay={from:f,to:t,amount:(n/100).toFixed(2),note:''};draw();toast('Payment form filled in')}
-async function savePay(){const a=parseFloat(pay.amount);if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
+async function savePay(){const a=parseFloat(pay.amount);if(!isAdmin())pay.to=me;if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
  try{await db.collection('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
 const delPay=id=>arm('p'+id,()=>db.collection('payments').doc(id).delete().catch(()=>toast('Could not delete')));
 
@@ -168,8 +171,8 @@ function vMeals(){
    h+=`<div class="pr tt"><span>Bill total</span><b>${peso(c.sum)}</b></div>`;
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
-    return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
-   `<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div></div>`}
+    return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
+   (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
   return h+'</div>'}).join('');
 }
 function msg(m,p){const c=calc(m),i=m.attendees.indexOf(p),ln=[`🍽️ ${m.place||'Meal'} · ${m.date}`];
@@ -217,21 +220,28 @@ async function saveMeal(){
  if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who was there');
  const m=res();delete m.id;m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
  if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
+ if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
  try{let id=D.id;if(id)await db.collection('meals').doc(id).set(m);else{m.created=Date.now();id=(await db.collection('meals').add(m)).id}
   expd[id]=true;D=null;tab='meals';draw();toast('Meal saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
 function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
- D={id,created:m.created,date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',
+ if(!canMeal(m))return toast('You can only edit meals you created');
+ D={id,uid:m.uid,created:m.created,date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',
   items:m.items.map(i=>({name:i.name,price:String(i.price),all:f(i.people),people:[...i.people]})),
   extras:m.extras.map(x=>({label:x.label,type:x.type,value:String(x.value),sign:x.sign,mode:x.mode,all:f(x.people),people:[...x.people]}))};
  if(!D.items.length)D.items.push({name:'',price:'',all:false,people:[]});go('new')}
 
 /* ---------- people ---------- */
 function vPeople(){
- const used=id=>meals.some(m=>m.payer===id||m.attendees.includes(id))||pays.some(p=>p.from===id||p.to===id);
- return `<div class="card"><h2>Who are you?</h2><select onchange="setMe(this.value)">${opts(members.map(m=>m.id),me,'Not set')}</select><p class="mu">Used to highlight your own balance on this device.</p></div>
- <div class="card"><h2>Team</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
- <div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key==='Enter')addMember()"><button onclick="addMember()">Add</button></div></div>`}
-function setMe(v){me=v;try{localStorage.setItem('tt_me',v)}catch(e){}toast('Saved')}
+ const used=id=>meals.some(m=>m.payer===id||m.attendees.includes(id))||pays.some(p=>p.from===id||p.to===id),ids=members.map(m=>m.id),A=isAdmin();
+ let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${esc(nm(me))} · ${A?'Admin':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
+ <div class="card"><h2>Team</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
+ ${A?'<div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key===\'Enter\')addMember()"><button onclick="addMember()">Add</button></div>':''}</div>`;
+ if(A)h+=`<div class="card"><h2>Access</h2><div class="mu">Google accounts allowed to sign in, and who they are.</div>${roles.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${esc(nm(r.member))} · ${r.role==='admin'?'Admin':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,'Remove')}</button>`}</div>`).join('')}
+ <div class="sub"><input id="re" type="email" placeholder="Google email"><div class="row" style="margin-top:6px"><select id="rm">${opts(ids,'','Person…')}</select><select id="rr"><option value="contributor">Contributor</option><option value="admin">Admin</option></select></div><button onclick="addRole()">Grant access</button></div></div>`;
+ return h}
+async function addRole(){const e=$('#re').value.trim().toLowerCase(),m=$('#rm').value,r=$('#rr').value;if(!/^[^\s'"<>@]+@[^\s'"<>@]+\.[^\s'"<>@]+$/.test(e)||!m)return toast('Enter an email and pick a person');
+ try{await db.collection('roles').doc(e).set({member:m,role:r});toast('Access granted')}catch(x){toast('Could not save')}}
+const delRole=id=>arm('r'+id,()=>db.collection('roles').doc(id).delete().catch(()=>toast('Could not remove')));
 async function addMember(){const v=$('#nn').value.trim();if(!v)return;if(members.some(m=>m.name.toLowerCase()===v.toLowerCase()))return toast('Already added');
  try{await db.collection('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
 const delMember=id=>arm('u'+id,()=>db.collection('members').doc(id).delete().catch(()=>toast('Could not remove')));
@@ -242,9 +252,18 @@ const delMember=id=>arm('u'+id,()=>db.collection('members').doc(id).delete().cat
  const t=setTimeout(()=>{if(!db)fail()},10000);
  try{firebase.initializeApp(firebaseConfig);db=firebase.firestore()}catch(e){db=null}
  clearTimeout(t);if(!db||firebaseConfig.projectId==='PASTE_PROJECT_ID')return fail();
- const sub=(n,f)=>db.collection(n).onSnapshot(s=>{f(s.docs.map(d=>({id:d.id,...d.data()})));
-  if(n==='members'&&!seenM){seenM=true;if(!members.length)tab='people'}onData()},e=>toast('Sync problem: '+(e.code||'')));
- sub('members',v=>members=v.sort((a,b)=>(a.created||0)-(b.created||0)));sub('meals',v=>meals=v);sub('payments',v=>pays=v);
+ let subs=[];
+ const gate=h=>{$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
+ const sub=(n,f)=>subs.push(db.collection(n).onSnapshot(s=>{f(s.docs.map(d=>({id:d.id,...d.data()})));
+  if(n==='members'&&!seenM){seenM=true;if(!members.length&&isAdmin())tab='people'}onData()},e=>toast('Sync problem: '+(e.code||''))));
+ firebase.auth().onAuthStateChanged(async u=>{
+  subs.forEach(f=>f());subs=[];user=u;role=null;me='';members=[];meals=[];pays=[];roles=[];seenM=false;tab='bal';bp=null;D=null;
+  if(!u)return gate('<h2>Sign in</h2><p class="mu">Use the Google account your admin gave access to.</p><button class="pri" onclick="firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message))">Sign in with Google</button>');
+  try{const r=await db.collection('roles').doc((u.email||'').toLowerCase()).get();role=r.exists?r.data():null}catch(e){role=null}
+  if(!role)return gate(`<h2>No access yet</h2><p class="mu">${esc(u.email)} isn’t on the team. Ask an admin to grant access.</p><button onclick="firebase.auth().signOut()">Sign out</button>`);
+  me=role.member||'';$('#app').innerHTML='<div class="card mu">Loading…</div>';nav();
+  sub('members',v=>members=v.sort((a,b)=>(a.created||0)-(b.created||0)));sub('meals',v=>meals=v);sub('payments',v=>pays=v);
+  if(isAdmin())sub('roles',v=>roles=v);
+ });
 })();
-nav();
 </script></body></html>
