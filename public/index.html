@@ -130,10 +130,10 @@ function ledger(){
 const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—':r.every(x=>x.paid>=x.o)?'Settled':r.some(x=>x.paid>0)?'Partial':'Unpaid'};
 
 /* ---------- navigation ---------- */
-function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['new','＋ Expense'],['people','People']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${(tab==='new'?'meals':tab)===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function tog(k){expd[k]=!expd[k];draw()}
 function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
-function draw(){nav();$('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv()}
+function draw(){const f=document.activeElement?.id==='q';nav();$('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}}
 function onData(){if(tab!=='new')draw()}
 function arm(k,fn){if(armed!==k){armed=k;draw();setTimeout(()=>{if(armed===k){armed='';if(tab!=='new')draw()}},3000);return}armed='';fn()}
 const dlabel=(k,t)=>armed===k?'Tap again to confirm':t;
@@ -194,12 +194,21 @@ const delPay=id=>arm('p'+id,()=>db.collection('payments').doc(id).delete().catch
 
 /* ---------- expenses list ---------- */
 function vMeals(){
- if(!meals.length)return '<div class="card mu">No expenses yet. Tap ＋ Expense to add one.</div>';
+ return `<button class="pri" style="margin:0 0 10px" onclick="if(D&&D.id)D=null;go('new')">＋ Add expense</button>`+
+  (meals.length?`<input id="q" type="search" placeholder="Search place, person, item, category, date…" value="${esc(q)}" oninput="q=this.value;ml()" style="margin-bottom:10px">`:'')+'<div id="ml"></div>';
+}
+let q='';
+function ml(){
+ const el=$('#ml');if(!el)return;
+ if(!meals.length){el.innerHTML='<div class="card mu">No expenses yet. Tap ＋ Add expense to start.</div>';return}
  const L=ledger(),names=a=>a.length?a.map(nm).join(', '):'nobody';
  const cats=['all',...Object.keys(CAT).filter(k=>meals.some(m=>catOf(m)===k))];if(!cats.includes(fcat))fcat='all';
- const list=[...meals].filter(m=>fcat==='all'||catOf(m)===fcat).sort(newest);
+ const terms=q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+ const hit=m=>{const s=[m.place,catName(m),m.date,nm(m.payer),...m.attendees.map(nm),...(m.items||[]).map(i=>i.name)].join(' ').toLowerCase();return terms.every(t=>s.includes(t))};
+ const list=[...meals].filter(m=>(fcat==='all'||catOf(m)===fcat)&&hit(m)).sort(newest);
+ const done=m=>['Settled','—'].includes(status(m,L)),open=list.filter(m=>!done(m)),closed=list.filter(done);
  const fl=cats.length>2?`<div class="chips" style="margin-bottom:10px">${cats.map(k=>`<button type="button" class="chip ${fcat===k?'on':''}" onclick="fcat='${k}';draw()">${k==='all'?'All':CAT[k].icon+' '+CAT[k].name}</button>`).join('')}</div>`:'';
- return fl+list.map(m=>{
+ const card=m=>{
   const c=calc(m),s=status(m,L),o=expd[m.id],every=a=>a.length>1&&a.length===m.attendees.length?'Everyone':names(a);
   let h=`<div class="card"><div class="hd" onclick="tog('${m.id}')"><div><b>${esc(title(m))}</b><div class="mu">${esc(m.date)} · ${esc(catName(m))} · paid by ${esc(nm(m.payer))}</div><div class="mu" style="color:var(--ac)">${o?'▾ Hide breakdown':'▸ View breakdown'}</div></div><div style="text-align:right"><b>${peso(c.sum)}</b><br><span class="badge ${s}">${s}</span></div></div>`;
   if(o){
@@ -211,7 +220,11 @@ function vMeals(){
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
     return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
    (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
-  return h+'</div>'}).join('');
+  return h+'</div>'};
+ // searching auto-opens the completed section so matches aren't hidden
+ const showDone=expd.done||terms.length>0;
+ el.innerHTML=fl+(open.length?open.map(card).join(''):`<div class="card mu">${terms.length?'No open expenses match your search.':'Nothing outstanding. 🎉'}</div>`)+
+  (closed.length?`<div class="hd" style="margin:16px 2px 8px" onclick="tog('done')"><b>${showDone?'▾':'▸'} Completed (${closed.length})</b><span class="mu">Fully paid</span></div>`+(showDone?closed.map(card).join(''):''):'');
 }
 function msg(m,p){const c=calc(m),i=m.attendees.indexOf(p),ln=[`${title(m)} · ${m.date}`];
  m.items.forEach(it=>{if(it.people.includes(p)){const n=it.people.length;ln.push(`• ${it.name||'Item'}${n>1?` (1/${n} of ${peso(it.price*100)})`:''}: ${peso(it.price*100/n)}`)}});
@@ -240,7 +253,7 @@ function vNew(){
  const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Label" value="${esc(x.label)}" oninput="D.extras[${i}].label=this.value;pv()"><input class="g1" inputmode="decimal" placeholder="Value" value="${esc(x.value)}" oninput="D.extras[${i}].value=this.value;pv()"><select style="width:64px" onchange="D.extras[${i}].type=this.value;pv()"><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" onclick="D.extras.splice(${i},1);draw()">✕</button></div>
   <div class="row"><select onchange="D.extras[${i}].sign=+this.value;pv()"><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select onchange="D.extras[${i}].mode=this.value;pv()"><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
   <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('extras',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
- return `<div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
+ return `<button class="sm" style="margin-bottom:10px" onclick="if(D.id)D=null;go('meals')">${D.id?'← Cancel edit':'← Expenses'}</button><div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
  <div class="lb">Category</div><div class="chips">${Object.entries(CAT).map(([k,c])=>`<button type="button" class="chip ${catOf(D)===k?'on':''}" onclick="D.category='${k}';draw()">${c.icon} ${c.name}</button>`).join('')}</div>
  ${catOf(D)==='custom'?`<label>Category name<input list="cn" placeholder="e.g. Groceries, Lodging, Gift" value="${esc(D.catName)}" oninput="D.catName=this.value"></label><datalist id="cn">${customs.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`:''}
  <div class="row"><label class="g1">Date<input type="date" value="${D.date}" oninput="D.date=this.value"></label><label class="g1">${catOf(D)==='meal'?'Place':'Description'}<input placeholder="${esc(C.place)}" value="${esc(D.place)}" oninput="D.place=this.value"></label></div>
