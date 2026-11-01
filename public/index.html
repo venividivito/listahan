@@ -65,7 +65,6 @@ applyTheme();
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script>
 /* === PASTE YOUR FIREBASE CONFIG HERE (Firebase console > Project settings > Your apps) === */
 const firebaseConfig={
@@ -77,6 +76,8 @@ const firebaseConfig={
  appId:"1:6857630729:web:731df10fad6f4f6d0a04d8"
 };
 /* ============================================================================ */
+// Cloudinary receipt storage: cloud name and an UNSIGNED upload preset name
+const CLOUDINARY={cloud:'czzsvajf',preset:tab-tracker'};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -256,8 +257,7 @@ function cp(id,p){const t=msg(meals.find(m=>m.id===id),p);
  navigator.clipboard?.writeText(t).then(()=>toast('Copied')).catch(fb)||fb()}
 async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
  try{await T('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
-const delMeal=id=>arm('m'+id,()=>{const r=meals.find(m=>m.id===id)?.receipt;
- T('meals').doc(id).delete().then(()=>{if(r)rm(r)}).catch(()=>toast('Could not delete'))});
+const delMeal=id=>arm('m'+id,()=>T('meals').doc(id).delete().catch(()=>toast('Could not delete')));
 
 /* ---------- add / edit expense ---------- */
 const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:'',receipt:'',receiptFile:null,receiptPrev:''});
@@ -268,9 +268,13 @@ function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i
 function pickReceipt(f){if(!f)return;if(!f.type.startsWith('image/'))return toast('Choose an image file');
  if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);D.receiptFile=f;D.receiptPrev=URL.createObjectURL(f);draw()}
 function clearReceipt(){if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);D.receiptFile=null;D.receiptPrev='';D.receipt='';draw()}
-async function viewReceipt(path){const w=window.open('','_blank');
- try{const u=await firebase.storage().ref(path).getDownloadURL();if(w)w.location=u;else location.href=u}catch(e){w?.close();toast('Could not load receipt')}}
-const rm=p=>firebase.storage().ref(p).delete().catch(()=>{});
+async function uploadReceipt(blob){
+ if(!CLOUDINARY.cloud||!CLOUDINARY.preset)throw new Error('Cloudinary is not configured');
+ const fd=new FormData();fd.append('file',blob);fd.append('upload_preset',CLOUDINARY.preset);
+ const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY.cloud}/image/upload`,{method:'POST',body:fd}),j=await r.json().catch(()=>({}));
+ if(!r.ok||!j.secure_url)throw new Error('Receipt upload failed: '+(j.error?.message||r.status));
+ return j.secure_url}
+const viewReceipt=u=>window.open(u,'_blank','noopener')||(location.href=u);
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" onclick="${fn}(${l?`'${l}',${i},`:''}'${id}')">${esc(nm(id))}</button>`).join('')}
@@ -308,16 +312,13 @@ function pv(){const el=document.getElementById('pv');if(!el||!D)return;const m=r
 async function saveMeal(){
  if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who\'s splitting');
  if(catOf(D)==='custom'&&!D.catName.trim())return toast('Name the custom category');
- const m=res(),oldR=D.id?(meals.find(x=>x.id===D.id)?.receipt||''):'',file=D.receiptFile;delete m.id;delete m.receiptFile;delete m.receiptPrev;m.receipt=D.receipt||'';m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
+ const m=res(),file=D.receiptFile;delete m.id;delete m.receiptFile;delete m.receiptPrev;m.receipt=D.receipt||'';m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
  if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
  if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
  try{let id=D.id;
-  if(file){toast('Uploading receipt…');const b=await shrink(file);m.receipt=`receipts/${cur}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
-   await firebase.storage().ref(m.receipt).put(b,{contentType:'image/jpeg'})}
+  if(file){toast('Uploading receipt…');m.receipt=await uploadReceipt(await shrink(file))}
   if(!m.receipt)delete m.receipt;
-  try{if(id)await T('meals').doc(id).set(m);else{m.created=Date.now();id=(await T('meals').add(m)).id}}
-  catch(e){if(file)rm(m.receipt);throw e}
-  if(oldR&&oldR!==m.receipt)rm(oldR);
+  if(id)await T('meals').doc(id).set(m);else{m.created=Date.now();id=(await T('meals').add(m)).id}
   if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);
   expd[id]=true;D=null;tab='meals';draw();toast('Expense saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
 function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
