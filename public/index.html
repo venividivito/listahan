@@ -148,9 +148,11 @@ function nav(){
  $('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${(tab==='new'?'meals':tab)===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function tog(k){expd[k]=!expd[k];draw()}
 function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
-function draw(){const f=document.activeElement?.id==='q';nav();
+function draw(){const f=document.activeElement?.id==='q',ev=$('#ed')?.value;nav();
  if(!cur&&tab!=='people'){$('#app').innerHTML='<div class="card">No team selected. Create one under <b>People</b>.</div>';return}
- $('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}}
+ $('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}
+ // keep an in-progress rename when live data triggers a redraw
+ if(ev!=null&&$('#ed')){$('#ed').value=ev;$('#ed').focus()}}
 function onData(){if(tab!=='new')draw()}
 function arm(k,fn){if(armed!==k){armed=k;draw();setTimeout(()=>{if(armed===k){armed='';if(tab!=='new')draw()}},3000);return}armed='';fn()}
 const dlabel=(k,t)=>armed===k?'Tap again to confirm':t;
@@ -310,10 +312,10 @@ function vPeople(){
  <div class="card"><h2>Appearance</h2><div class="lb">Mode</div><div class="chips">${[['system','System'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" class="chip ${mode===k?'on':''}" onclick="setTheme(palette,'${k}')">${l}</button>`).join('')}</div>
  <div class="lb">Palette</div><div class="chips">${Object.entries(PAL).map(([k,p])=>`<button type="button" class="chip ${palette===k?'on':''}" onclick="setTheme('${k}',mode)"><span class="sw2" style="background:${p[(mode==='dark'||(mode==='system'&&darkMQ.matches))?'dark':'light'][4]}"></span>${p.name}</button>`).join('')}</div></div>`;
  if(A&&legacy&&!teams.some(t=>t.legacy))h+=`<div class="card"><h2>Move existing data into a team</h2><div class="mu">People, expenses and payments from before teams existed are hidden until moved. Existing access entries are linked to the new team too. The original data is left untouched.</div><div class="row sub"><input id="lg" placeholder="Team name"><button onclick="migrate()">Move</button></div></div>`;
- if(A)h+=`<div class="card"><h2>Teams</h2>${teams.map(t=>`<div class="pr"><span>${esc(t.name)}</span>${t.id===cur?'<span class="mu">current</span>':`<button class="sm" onclick="openTeam('${esc(t.id)}')">Open</button>`}</div>`).join('')||'<p class="mu">No teams yet.</p>'}
+ if(A)h+=`<div class="card"><h2>Teams</h2>${teams.map(t=>nameRow('t:'+t.id,t.name,`${t.id===cur?'<span class="mu">current</span>':`<button class="sm" onclick="openTeam('${esc(t.id)}')">Open</button>`}<button class="sm" onclick="editName('t:${esc(t.id)}')">Rename</button><button class="sm" onclick="delTeam('${esc(t.id)}')">Delete</button>`)).join('')||'<p class="mu">No teams yet.</p>'}
  <div class="row sub"><input id="tn" placeholder="New team name" onkeydown="if(event.key==='Enter')addTeam()"><button onclick="addTeam()">Create</button></div></div>`;
  if(!cur)return h;
- h+=`<div class="card"><h2>${esc(tname(cur))} · people</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
+ h+=`<div class="card"><h2>${esc(tname(cur))} · people</h2>${members.map(m=>nameRow('m:'+m.id,m.name,!A?'':`<button class="sm" onclick="editName('m:${m.id}')">Rename</button>${used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}`)).join('')||'<p class="mu">No one yet.</p>'}
  ${A?'<div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key===\'Enter\')addMember()"><button onclick="addMember()">Add</button></div>':''}</div>`;
  const acc=roles.filter(r=>r.role==='admin'||(r.teams&&cur in r.teams));
  if(A)h+=`<div class="card"><h2>Access to ${esc(tname(cur))}</h2><div class="mu">Contributors only see teams they're added to. Admins see every team.</div>${acc.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${r.teams?.[cur]?esc(nm(r.teams[cur]))+' · ':''}${r.role==='admin'?'Admin (all teams)':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,r.role==='admin'?'Remove access':'Remove from team')}</button>`}</div>`).join('')}
@@ -327,6 +329,23 @@ const delRole=id=>arm('r'+id,async()=>{const r=roles.find(x=>x.id===id),ref=db.c
 async function addMember(){const v=$('#nn').value.trim();if(!v)return;if(members.some(m=>m.name.toLowerCase()===v.toLowerCase()))return toast('Already added');
  try{await T('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
 const delMember=id=>arm('u'+id,()=>T('members').doc(id).delete().catch(()=>toast('Could not remove')));
+let ed='';
+const nameRow=(k,name,btns)=>ed===k?`<div class="row" style="padding:6px 0"><input id="ed" class="g1" value="${esc(name)}" onkeydown="if(event.key==='Enter')saveName('${k}');if(event.key==='Escape'){ed='';draw()}"><button class="sm" onclick="saveName('${k}')">Save</button><button class="sm" onclick="ed='';draw()">Cancel</button></div>`
+ :`<div class="pr"><span>${esc(name)}</span>${btns}</div>`;
+function editName(k){ed=k;draw();$('#ed')?.focus()}
+async function saveName(k){const v=$('#ed').value.trim(),[type,id]=k.split(':');if(!v)return toast('Name can\'t be empty');
+ const list=type==='t'?teams:members;if(list.some(x=>x.id!==id&&(x.name||'').toLowerCase()===v.toLowerCase()))return toast('That name is already used');
+ try{await(type==='t'?db.collection('teams').doc(id):T('members').doc(id)).update({name:v});ed='';draw();toast('Renamed')}catch(e){toast('Could not rename')}}
+async function delTeam(id){const t=teams.find(x=>x.id===id);if(!t)return;
+ const v=prompt(`This permanently deletes "${t.name}" and all its people, expenses and payments. Access to it is removed for everyone.\n\nType the team name to confirm:`);
+ if(v==null)return;if(v.trim()!==t.name)return toast('Name didn\'t match. Nothing deleted.');
+ try{toast('Deleting…');const tr=db.collection('teams').doc(id),ops=[];
+  for(const n of ['members','meals','payments'])(await tr.collection(n).get()).docs.forEach(d=>ops.push(b=>b.delete(d.ref)));
+  roles.filter(r=>r.teams&&id in r.teams).forEach(r=>ops.push(b=>b.update(db.collection('roles').doc(r.id),{['teams.'+id]:firebase.firestore.FieldValue.delete()})));
+  // team doc last, so a failed run can be retried from the list
+  ops.push(b=>b.delete(tr));
+  for(let i=0;i<ops.length;i+=400){const b=db.batch();ops.slice(i,i+400).forEach(f=>f(b));await b.commit()}
+  toast('Team deleted')}catch(e){toast('Delete failed: '+(e.code||e.message||''))}}
 async function addTeam(){const v=$('#tn').value.trim();if(!v)return;if(teams.some(t=>(t.name||'').toLowerCase()===v.toLowerCase()))return toast('Team already exists');
  try{const r=await db.collection('teams').add({name:v,created:Date.now()});openTeam(r.id);toast('Team created')}catch(e){toast('Could not create team')}}
 async function migrate(){const name=$('#lg').value.trim();if(!name)return toast('Name the team');
