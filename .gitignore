@@ -64,6 +64,14 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+
+# credentials must never be committed
+*.pem
+*.key
+*service-account*.json
+serviceAccount*.json
 
 # dataconnect generated files
 .dataconnect

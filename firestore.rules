@@ -3,8 +3,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- identity ----------
+    // Only Google-verified emails count. Roles are keyed by email, so an unverified address must never match one.
     function signedIn() {
-      return request.auth != null && request.auth.token.email is string;
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
     }
     function email() {
       return request.auth.token.email.lower();
@@ -29,8 +34,41 @@ service cloud.firestore {
     function memberIn(t) {
       return myTeams().get(t, '');
     }
+
+    // ---------- validation helpers ----------
     function str(v, max) {
       return v is string && v.size() <= max;
+    }
+    function nonEmpty(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+    function num(v, max) {
+      return v is number && v >= 0 && v < max;
+    }
+    // Client-generated document IDs are Firestore auto-IDs; reject anything else (no path tricks, no markup).
+    function okId(id) {
+      return id.matches('[A-Za-z0-9_-]{1,64}');
+    }
+    function okEmail(e) {
+      return e == e.lower() && e.size() <= 254
+        && e.matches('[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\\.[a-z]{2,}');
+    }
+    function okDate(d) {
+      return d is string && d.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+    // Attachments may only be https images on our own Cloudinary account; rules can't loop, so each slot is checked.
+    function rcOk(r, i) {
+      return r.size() <= i
+        || (r[i] is string && r[i].size() <= 300
+            && r[i].matches('https://res\\.cloudinary\\.com/czzsvajf/.*'));
+    }
+    function receiptsOk(r) {
+      return r is list && r.size() <= 10
+        && rcOk(r, 0) && rcOk(r, 1) && rcOk(r, 2) && rcOk(r, 3) && rcOk(r, 4)
+        && rcOk(r, 5) && rcOk(r, 6) && rcOk(r, 7) && rcOk(r, 8) && rcOk(r, 9);
+    }
+    function memberExists(t, m) {
+      return m is string && exists(/databases/$(database)/documents/teams/$(t)/members/$(m));
     }
 
     // Doc ID is the lowercase Google email.
@@ -38,10 +76,14 @@ service cloud.firestore {
       allow get: if signedIn() && roleId == email();
       allow list: if isAdmin();
       allow create, update: if isAdmin()
+        && okEmail(roleId)
         && request.resource.data.keys().hasOnly(['role', 'teams', 'member'])
         && request.resource.data.role in ['admin', 'contributor']
         && request.resource.data.get('teams', {}) is map
-        && str(request.resource.data.get('member', ''), 100);
+        && request.resource.data.get('teams', {}).size() <= 100
+        && str(request.resource.data.get('member', ''), 100)
+        // Admins can't demote themselves (would lock the team out of its last admin).
+        && (roleId != email() || request.resource.data.role == 'admin');
       // Admins can't remove their own access.
       allow delete: if isAdmin() && roleId != email();
     }
@@ -49,32 +91,33 @@ service cloud.firestore {
     match /teams/{t} {
       allow get: if inTeam(t);
       allow list: if isAdmin();
-      allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(['name', 'created', 'legacy'])
-        && str(request.resource.data.name, 60)
-        && request.resource.data.name.size() > 0;
+      allow create: if isAdmin() && okId(t) && validTeam(request.resource.data);
+      allow update: if isAdmin() && validTeam(request.resource.data);
       allow delete: if isAdmin();
 
       match /members/{id} {
         allow read: if inTeam(t);
-        allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(['name', 'created'])
-          && str(request.resource.data.name, 100)
-          && request.resource.data.name.size() > 0;
+        allow create: if isAdmin() && okId(id) && validMember(request.resource.data);
+        allow update: if isAdmin() && validMember(request.resource.data);
         allow delete: if isAdmin();
       }
 
       // Expenses (collection kept as "meals" for existing data).
       match /meals/{id} {
         allow read: if inTeam(t);
-        // Admins may write any uid so legacy data can be migrated as-is.
+        // Admins may write any uid so legacy data can be migrated as-is. Contributors must tie the
+        // expense to themselves and to people who actually belong to this team.
         allow create: if inTeam(t)
+          && okId(id)
           && validExpense(request.resource.data)
-          && (isAdmin() || request.resource.data.uid == request.auth.uid);
+          && (isAdmin()
+              || (request.resource.data.uid == request.auth.uid
+                  && memberExists(t, request.resource.data.payer)));
         allow update: if inTeam(t)
           && (isAdmin() || resource.data.get('uid', null) == request.auth.uid)
           && request.resource.data.get('uid', null) == resource.data.get('uid', null)
-          && validExpense(request.resource.data);
+          && validExpense(request.resource.data)
+          && (isAdmin() || memberExists(t, request.resource.data.payer));
         allow delete: if isAdmin() || (inTeam(t) && resource.data.get('uid', null) == request.auth.uid);
       }
 
@@ -82,19 +125,23 @@ service cloud.firestore {
       match /payments/{id} {
         allow read: if inTeam(t);
         allow create: if inTeam(t)
+          && okId(id)
           && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal', 'receipts'])
-          && str(request.resource.data.from, 100)
-          && str(request.resource.data.to, 100)
+          && nonEmpty(request.resource.data.from, 100)
+          && nonEmpty(request.resource.data.to, 100)
           && request.resource.data.from != request.resource.data.to
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.amount < 10000000
           && str(request.resource.data.get('note', ''), 200)
           && str(request.resource.data.get('meal', ''), 100)
-          && request.resource.data.get('receipts', []) is list
-          && request.resource.data.get('receipts', []).size() <= 10
+          && okDate(request.resource.data.date)
+          && request.resource.data.get('created', 0) is number
+          && receiptsOk(request.resource.data.get('receipts', []))
           && (isAdmin()
-              || (memberIn(t) != ''
+              || (memberExists(t, request.resource.data.from)
+                  && memberExists(t, request.resource.data.to)
+                  && memberIn(t) != ''
                   && (request.resource.data.from == memberIn(t)
                       || request.resource.data.to == memberIn(t))));
         allow update: if false;
@@ -104,20 +151,35 @@ service cloud.firestore {
       }
     }
 
+    function validTeam(d) {
+      return d.keys().hasOnly(['name', 'created', 'legacy'])
+        && nonEmpty(d.name, 60)
+        && d.get('created', 0) is number
+        && d.get('legacy', false) is bool;
+    }
+
+    function validMember(d) {
+      return d.keys().hasOnly(['name', 'created'])
+        && nonEmpty(d.name, 100)
+        && d.get('created', 0) is number;
+    }
+
     function validExpense(d) {
       return d.keys().hasOnly(['category', 'catName', 'date', 'place', 'payer', 'attendees',
                                'items', 'extras', 'total', 'uid', 'created', 'receipt', 'receipts'])
         && str(d.get('receipt', ''), 300)
-        && d.get('receipts', []) is list && d.get('receipts', []).size() <= 10
+        && receiptsOk(d.get('receipts', []))
         && d.get('category', 'meal') in ['meal', 'transport', 'custom']
         && str(d.get('catName', ''), 60)
-        && str(d.date, 10)
+        && okDate(d.date)
         && str(d.get('place', ''), 200)
-        && str(d.payer, 100)
+        && nonEmpty(d.payer, 100)
         && d.attendees is list && d.attendees.size() > 0 && d.attendees.size() <= 100
         && d.items is list && d.items.size() <= 200
         && d.extras is list && d.extras.size() <= 50
-        && d.get('total', 0) is number;
+        && num(d.get('total', 0), 1000000000)
+        && str(d.get('uid', ''), 128)
+        && d.get('created', 0) is number;
     }
 
     // Pre-teams data: admin read-only, kept until migrated.
