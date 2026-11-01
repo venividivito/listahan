@@ -61,7 +61,7 @@ function applyTheme(){const d=mode==='dark'||(mode==='system'&&darkMQ.matches),r
 darkMQ.addEventListener('change',()=>{if(mode==='system')applyTheme()});
 applyTheme();
 </script></head>
-<body><div class="w"><h1>🍽️ Tab Tracker</h1><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
+<body><div class="w"><h1>🍽️ Tab Tracker</h1><div id="tm"></div><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -82,6 +82,19 @@ const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minim
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 let db=null,members=[],meals=[],pays=[],tab='bal',me='',D=null,expd={},armed='',seenM=false;
 let pay={from:'',to:'',amount:'',note:''},user=null,role=null,roles=[];
+let teams=[],cur=localStorage.getItem('team')||'',legacy=false,tsubs=[],gsubs=[];
+const T=n=>db.collection('teams').doc(cur).collection(n);
+const tname=id=>(teams.find(t=>t.id===id)||{name:'Team'}).name;
+function openTeam(id){
+ tsubs.forEach(f=>f());tsubs=[];cur=id||'';localStorage.setItem('team',cur);
+ members=[];meals=[];pays=[];seenM=false;D=null;bp=null;expd={};fcat='all';q='';me=role?.teams?.[cur]||'';if(tab==='new')tab='meals';
+ if(cur){const s=(n,f)=>tsubs.push(T(n).onSnapshot(x=>{f(x.docs.map(d=>({id:d.id,...d.data()})));
+  if(n==='members'&&!seenM){seenM=true;if(!members.length&&isAdmin())tab='people'}onData()},e=>toast('Sync problem: '+(e.code||''))));
+  s('members',v=>members=v.sort((a,b)=>(a.created||0)-(b.created||0)));s('meals',v=>meals=v);s('payments',v=>pays=v)}
+ draw()}
+function setTeams(list){teams=list.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+ const id=teams.some(t=>t.id===cur)?cur:(teams[0]?.id||'');
+ if(id!==cur||(id&&!tsubs.length))openTeam(id);else{me=role?.teams?.[cur]||'';draw()}}
 let autoNet=localStorage.getItem('autoNet')!=='0';
 function setNet(v){autoNet=v;localStorage.setItem('autoNet',v?'1':'0');draw()}
 function setTheme(p,m){palette=p;mode=m;localStorage.setItem('palette',p);localStorage.setItem('mode',m);applyTheme();draw()}
@@ -130,10 +143,14 @@ function ledger(){
 const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—':r.every(x=>x.paid>=x.o)?'Settled':r.some(x=>x.paid>0)?'Partial':'Unpaid'};
 
 /* ---------- navigation ---------- */
-function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${(tab==='new'?'meals':tab)===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function nav(){
+ $('#tm').innerHTML=teams.length>1?`<select style="margin-bottom:8px" onchange="openTeam(this.value)">${teams.map(t=>`<option value="${esc(t.id)}" ${sel(t.id,cur)}>${esc(t.name)}</option>`).join('')}</select>`:teams.length?`<div class="mu" style="margin:-6px 0 8px">${esc(tname(cur))}</div>`:'';
+ $('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${(tab==='new'?'meals':tab)===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function tog(k){expd[k]=!expd[k];draw()}
 function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
-function draw(){const f=document.activeElement?.id==='q';nav();$('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}}
+function draw(){const f=document.activeElement?.id==='q';nav();
+ if(!cur&&tab!=='people'){$('#app').innerHTML='<div class="card">No team selected. Create one under <b>People</b>.</div>';return}
+ $('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}}
 function onData(){if(tab!=='new')draw()}
 function arm(k,fn){if(armed!==k){armed=k;draw();setTimeout(()=>{if(armed===k){armed='';if(tab!=='new')draw()}},3000);return}armed='';fn()}
 const dlabel=(k,t)=>armed===k?'Tap again to confirm':t;
@@ -189,8 +206,8 @@ function vPerson(L,id){
 }
 function setPay(f,t,n){pay={from:f,to:t,amount:(n/100).toFixed(2),note:''};draw();toast('Payment form filled in')}
 async function savePay(){const a=parseFloat(pay.amount);if(!isAdmin())pay.to=me;if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
- try{await db.collection('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
-const delPay=id=>arm('p'+id,()=>db.collection('payments').doc(id).delete().catch(()=>toast('Could not delete')));
+ try{await T('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
+const delPay=id=>arm('p'+id,()=>T('payments').doc(id).delete().catch(()=>toast('Could not delete')));
 
 /* ---------- expenses list ---------- */
 function vMeals(){
@@ -234,8 +251,8 @@ function cp(id,p){const t=msg(meals.find(m=>m.id===id),p);
  const fb=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('Copied')}catch(e){toast('Copy failed')}a.remove()};
  navigator.clipboard?.writeText(t).then(()=>toast('Copied')).catch(fb)||fb()}
 async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
- try{await db.collection('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
-const delMeal=id=>arm('m'+id,()=>db.collection('meals').doc(id).delete().catch(()=>toast('Could not delete')));
+ try{await T('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
+const delMeal=id=>arm('m'+id,()=>T('meals').doc(id).delete().catch(()=>toast('Could not delete')));
 
 /* ---------- add / edit expense ---------- */
 const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:''});
@@ -277,7 +294,7 @@ async function saveMeal(){
  const m=res();delete m.id;m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
  if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
  if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
- try{let id=D.id;if(id)await db.collection('meals').doc(id).set(m);else{m.created=Date.now();id=(await db.collection('meals').add(m)).id}
+ try{let id=D.id;if(id)await T('meals').doc(id).set(m);else{m.created=Date.now();id=(await T('meals').add(m)).id}
   expd[id]=true;D=null;tab='meals';draw();toast('Expense saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
 function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
  if(!canMeal(m))return toast('You can only edit expenses you created');
@@ -289,20 +306,37 @@ function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=
 /* ---------- people ---------- */
 function vPeople(){
  const used=id=>meals.some(m=>m.payer===id||m.attendees.includes(id))||pays.some(p=>p.from===id||p.to===id),ids=members.map(m=>m.id),A=isAdmin();
- let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${esc(nm(me))} · ${A?'Admin':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
+ let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${me?esc(nm(me))+' · ':''}${A?'Admin (all teams)':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
  <div class="card"><h2>Appearance</h2><div class="lb">Mode</div><div class="chips">${[['system','System'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" class="chip ${mode===k?'on':''}" onclick="setTheme(palette,'${k}')">${l}</button>`).join('')}</div>
- <div class="lb">Palette</div><div class="chips">${Object.entries(PAL).map(([k,p])=>`<button type="button" class="chip ${palette===k?'on':''}" onclick="setTheme('${k}',mode)"><span class="sw2" style="background:${p[(mode==='dark'||(mode==='system'&&darkMQ.matches))?'dark':'light'][4]}"></span>${p.name}</button>`).join('')}</div></div>
- <div class="card"><h2>Team</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
+ <div class="lb">Palette</div><div class="chips">${Object.entries(PAL).map(([k,p])=>`<button type="button" class="chip ${palette===k?'on':''}" onclick="setTheme('${k}',mode)"><span class="sw2" style="background:${p[(mode==='dark'||(mode==='system'&&darkMQ.matches))?'dark':'light'][4]}"></span>${p.name}</button>`).join('')}</div></div>`;
+ if(A&&legacy&&!teams.some(t=>t.legacy))h+=`<div class="card"><h2>Move existing data into a team</h2><div class="mu">People, expenses and payments from before teams existed are hidden until moved. Existing access entries are linked to the new team too. The original data is left untouched.</div><div class="row sub"><input id="lg" placeholder="Team name"><button onclick="migrate()">Move</button></div></div>`;
+ if(A)h+=`<div class="card"><h2>Teams</h2>${teams.map(t=>`<div class="pr"><span>${esc(t.name)}</span>${t.id===cur?'<span class="mu">current</span>':`<button class="sm" onclick="openTeam('${esc(t.id)}')">Open</button>`}</div>`).join('')||'<p class="mu">No teams yet.</p>'}
+ <div class="row sub"><input id="tn" placeholder="New team name" onkeydown="if(event.key==='Enter')addTeam()"><button onclick="addTeam()">Create</button></div></div>`;
+ if(!cur)return h;
+ h+=`<div class="card"><h2>${esc(tname(cur))} · people</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
  ${A?'<div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key===\'Enter\')addMember()"><button onclick="addMember()">Add</button></div>':''}</div>`;
- if(A)h+=`<div class="card"><h2>Access</h2><div class="mu">Google accounts allowed to sign in, and who they are.</div>${roles.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${esc(nm(r.member))} · ${r.role==='admin'?'Admin':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,'Remove')}</button>`}</div>`).join('')}
+ const acc=roles.filter(r=>r.role==='admin'||(r.teams&&cur in r.teams));
+ if(A)h+=`<div class="card"><h2>Access to ${esc(tname(cur))}</h2><div class="mu">Contributors only see teams they're added to. Admins see every team.</div>${acc.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${r.teams?.[cur]?esc(nm(r.teams[cur]))+' · ':''}${r.role==='admin'?'Admin (all teams)':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,r.role==='admin'?'Remove access':'Remove from team')}</button>`}</div>`).join('')}
  <div class="sub"><input id="re" type="email" placeholder="Google email"><div class="row" style="margin-top:6px"><select id="rm">${opts(ids,'','Person…')}</select><select id="rr"><option value="contributor">Contributor</option><option value="admin">Admin</option></select></div><button onclick="addRole()">Grant access</button></div></div>`;
  return h}
-async function addRole(){const e=$('#re').value.trim().toLowerCase(),m=$('#rm').value,r=$('#rr').value;if(!/^[^\s'"<>@]+@[^\s'"<>@]+\.[^\s'"<>@]+$/.test(e)||!m)return toast('Enter an email and pick a person');
- try{await db.collection('roles').doc(e).set({member:m,role:r});toast('Access granted')}catch(x){toast('Could not save')}}
-const delRole=id=>arm('r'+id,()=>db.collection('roles').doc(id).delete().catch(()=>toast('Could not remove')));
+async function addRole(){const e=$('#re').value.trim().toLowerCase(),m=$('#rm').value,r=$('#rr').value;if(!/^[^\s'"<>@]+@[^\s'"<>@]+\.[^\s'"<>@]+$/.test(e)||(r==='contributor'&&!m))return toast('Enter an email and pick a person');
+ const d={role:r};if(m)d.teams={[cur]:m};
+ try{await db.collection('roles').doc(e).set(d,{merge:true});toast('Access granted')}catch(x){toast('Could not save')}}
+const delRole=id=>arm('r'+id,async()=>{const r=roles.find(x=>x.id===id),ref=db.collection('roles').doc(id);
+ try{if(r.role!=='admin'&&Object.keys(r.teams||{}).some(k=>k!==cur))await ref.update({['teams.'+cur]:firebase.firestore.FieldValue.delete()});else await ref.delete()}catch(e){toast('Could not remove')}});
 async function addMember(){const v=$('#nn').value.trim();if(!v)return;if(members.some(m=>m.name.toLowerCase()===v.toLowerCase()))return toast('Already added');
- try{await db.collection('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
-const delMember=id=>arm('u'+id,()=>db.collection('members').doc(id).delete().catch(()=>toast('Could not remove')));
+ try{await T('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
+const delMember=id=>arm('u'+id,()=>T('members').doc(id).delete().catch(()=>toast('Could not remove')));
+async function addTeam(){const v=$('#tn').value.trim();if(!v)return;if(teams.some(t=>(t.name||'').toLowerCase()===v.toLowerCase()))return toast('Team already exists');
+ try{const r=await db.collection('teams').add({name:v,created:Date.now()});openTeam(r.id);toast('Team created')}catch(e){toast('Could not create team')}}
+async function migrate(){const name=$('#lg').value.trim();if(!name)return toast('Name the team');
+ try{toast('Moving…');const tr=db.collection('teams').doc(),ops=[];
+  for(const n of ['members','meals','payments'])(await db.collection(n).get()).docs.forEach(d=>ops.push(b=>b.set(tr.collection(n).doc(d.id),d.data())));
+  roles.filter(r=>r.member).forEach(r=>ops.push(b=>b.set(db.collection('roles').doc(r.id),{teams:{[tr.id]:r.member},member:firebase.firestore.FieldValue.delete()},{merge:true})));
+  // team doc last, so the move card only disappears once everything is copied
+  ops.push(b=>b.set(tr,{name,created:Date.now(),legacy:true}));
+  for(let i=0;i<ops.length;i+=400){const b=db.batch();ops.slice(i,i+400).forEach(f=>f(b));await b.commit()}
+  openTeam(tr.id);toast('Moved into '+name)}catch(e){toast('Move failed: '+(e.code||e.message||''))}}
 
 /* ---------- start ---------- */
 (async function(){
@@ -310,18 +344,29 @@ const delMember=id=>arm('u'+id,()=>db.collection('members').doc(id).delete().cat
  const t=setTimeout(()=>{if(!db)fail()},10000);
  try{firebase.initializeApp(firebaseConfig);db=firebase.firestore()}catch(e){db=null}
  clearTimeout(t);if(!db||firebaseConfig.projectId==='PASTE_PROJECT_ID')return fail();
- let subs=[];
- const gate=h=>{$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
- const sub=(n,f)=>subs.push(db.collection(n).onSnapshot(s=>{f(s.docs.map(d=>({id:d.id,...d.data()})));
-  if(n==='members'&&!seenM){seenM=true;if(!members.length&&isAdmin())tab='people'}onData()},e=>toast('Sync problem: '+(e.code||''))));
- firebase.auth().onAuthStateChanged(async u=>{
-  subs.forEach(f=>f());subs=[];user=u;role=null;me='';members=[];meals=[];pays=[];roles=[];seenM=false;tab='bal';bp=null;D=null;
+ let rsub=null,mode0=null;
+ const gate=h=>{$('#tm').innerHTML='';$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
+ const err=e=>toast('Sync problem: '+(e.code||''));
+ const stop=()=>{[...gsubs,...tsubs].forEach(f=>f());gsubs=[];tsubs=[];mode0=null;teams=[]};
+ firebase.auth().onAuthStateChanged(u=>{
+  rsub?.();rsub=null;stop();user=u;role=null;me='';members=[];meals=[];pays=[];roles=[];legacy=false;seenM=false;tab='bal';bp=null;D=null;
   if(!u)return gate('<h2>Sign in</h2><p class="mu">Use the Google account your admin gave access to.</p><button class="pri" onclick="firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message))">Sign in with Google</button>');
-  try{const r=await db.collection('roles').doc((u.email||'').toLowerCase()).get();role=r.exists?r.data():null}catch(e){role=null}
-  if(!role)return gate(`<h2>No access yet</h2><p class="mu">${esc(u.email)} isn’t on the team. Ask an admin to grant access.</p><button onclick="firebase.auth().signOut()">Sign out</button>`);
-  me=role.member||'';$('#app').innerHTML='<div class="card mu">Loading…</div>';nav();
-  sub('members',v=>members=v.sort((a,b)=>(a.created||0)-(b.created||0)));sub('meals',v=>meals=v);sub('payments',v=>pays=v);
-  if(isAdmin())sub('roles',v=>roles=v);
+  $('#app').innerHTML='<div class="card mu">Loading…</div>';
+  const noAccess=()=>{stop();gate(`<h2>No access yet</h2><p class="mu">${esc(u.email)} isn’t on a team. Ask an admin to grant access.</p><button onclick="firebase.auth().signOut()">Sign out</button>`)};
+  rsub=db.collection('roles').doc((u.email||'').toLowerCase()).onSnapshot(r=>{
+   role=r.exists?r.data():null;
+   if(!role||(!isAdmin()&&!Object.keys(role.teams||{}).length))return noAccess();
+   if(isAdmin()){
+    if(mode0==='admin'){me=role.teams?.[cur]||'';return draw()}
+    stop();mode0='admin';
+    gsubs.push(db.collection('teams').onSnapshot(s=>setTeams(s.docs.map(d=>({id:d.id,...d.data()}))),err));
+    gsubs.push(db.collection('roles').onSnapshot(s=>{roles=s.docs.map(d=>({id:d.id,...d.data()}));onData()},err));
+    Promise.all(['members','meals','payments'].map(n=>db.collection(n).limit(1).get())).then(x=>{legacy=x.some(s=>!s.empty);onData()}).catch(()=>{});
+    return}
+   if(mode0==='admin')stop();mode0='contributor';
+   Promise.all(Object.keys(role.teams).map(id=>db.collection('teams').doc(id).get()))
+    .then(ds=>setTeams(ds.filter(d=>d.exists).map(d=>({id:d.id,...d.data()})))).catch(err);
+  },noAccess);
  });
 })();
 </script></body></html>

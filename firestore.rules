@@ -18,8 +18,16 @@ service cloud.firestore {
     function isAdmin() {
       return hasRole() && get(rolePath()).data.role == 'admin';
     }
-    function myMember() {
-      return get(rolePath()).data.member;
+    // role.teams is a map of teamId -> this person's member ID in that team.
+    function myTeams() {
+      return get(rolePath()).data.get('teams', {});
+    }
+    // Admins (owners) can access every team; contributors only their own.
+    function inTeam(t) {
+      return isAdmin() || (hasRole() && t in myTeams());
+    }
+    function memberIn(t) {
+      return myTeams().get(t, '');
     }
     function str(v, max) {
       return v is string && v.size() <= max;
@@ -30,27 +38,69 @@ service cloud.firestore {
       allow get: if signedIn() && roleId == email();
       allow list: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(['member', 'role'])
+        && request.resource.data.keys().hasOnly(['role', 'teams', 'member'])
         && request.resource.data.role in ['admin', 'contributor']
-        && str(request.resource.data.member, 100);
+        && request.resource.data.get('teams', {}) is map
+        && str(request.resource.data.get('member', ''), 100);
       // Admins can't remove their own access.
       allow delete: if isAdmin() && roleId != email();
     }
 
-    match /members/{id} {
-      allow read: if hasRole();
+    match /teams/{t} {
+      allow get: if inTeam(t);
+      allow list: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(['name', 'created'])
-        && str(request.resource.data.name, 100)
+        && request.resource.data.keys().hasOnly(['name', 'created', 'legacy'])
+        && str(request.resource.data.name, 60)
         && request.resource.data.name.size() > 0;
-      allow delete: if isAdmin();
+      allow delete: if false;
+
+      match /members/{id} {
+        allow read: if inTeam(t);
+        allow create, update: if isAdmin()
+          && request.resource.data.keys().hasOnly(['name', 'created'])
+          && str(request.resource.data.name, 100)
+          && request.resource.data.name.size() > 0;
+        allow delete: if isAdmin();
+      }
+
+      // Expenses (collection kept as "meals" for existing data).
+      match /meals/{id} {
+        allow read: if inTeam(t);
+        // Admins may write any uid so legacy data can be migrated as-is.
+        allow create: if inTeam(t)
+          && validExpense(request.resource.data)
+          && (isAdmin() || request.resource.data.uid == request.auth.uid);
+        allow update: if inTeam(t)
+          && (isAdmin() || resource.data.get('uid', null) == request.auth.uid)
+          && request.resource.data.get('uid', null) == resource.data.get('uid', null)
+          && validExpense(request.resource.data);
+        allow delete: if isAdmin() || (inTeam(t) && resource.data.get('uid', null) == request.auth.uid);
+      }
+
+      // Contributors can only log/delete payments made to themselves.
+      match /payments/{id} {
+        allow read: if inTeam(t);
+        allow create: if inTeam(t)
+          && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal'])
+          && str(request.resource.data.from, 100)
+          && str(request.resource.data.to, 100)
+          && request.resource.data.from != request.resource.data.to
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.amount < 10000000
+          && str(request.resource.data.get('note', ''), 200)
+          && str(request.resource.data.get('meal', ''), 100)
+          && (isAdmin() || request.resource.data.to == memberIn(t));
+        allow update: if false;
+        allow delete: if isAdmin() || (inTeam(t) && resource.data.to == memberIn(t));
+      }
     }
 
-    // Expenses (collection kept as "meals" for existing data).
     function validExpense(d) {
       return d.keys().hasOnly(['category', 'catName', 'date', 'place', 'payer', 'attendees',
                                'items', 'extras', 'total', 'uid', 'created'])
-        && d.category in ['meal', 'transport', 'custom']
+        && d.get('category', 'meal') in ['meal', 'transport', 'custom']
         && str(d.get('catName', ''), 60)
         && str(d.date, 10)
         && str(d.get('place', ''), 200)
@@ -60,34 +110,10 @@ service cloud.firestore {
         && d.extras is list && d.extras.size() <= 50
         && d.get('total', 0) is number;
     }
-    match /meals/{id} {
-      allow read: if hasRole();
-      allow create: if hasRole()
-        && validExpense(request.resource.data)
-        && request.resource.data.uid == request.auth.uid;
-      allow update: if hasRole()
-        && (isAdmin() || resource.data.get('uid', null) == request.auth.uid)
-        && request.resource.data.get('uid', null) == resource.data.get('uid', null)
-        && validExpense(request.resource.data);
-      allow delete: if isAdmin() || (hasRole() && resource.data.get('uid', null) == request.auth.uid);
-    }
 
-    // Contributors can only log/delete payments made to themselves.
-    match /payments/{id} {
-      allow read: if hasRole();
-      allow create: if hasRole()
-        && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal'])
-        && str(request.resource.data.from, 100)
-        && str(request.resource.data.to, 100)
-        && request.resource.data.from != request.resource.data.to
-        && request.resource.data.amount is number
-        && request.resource.data.amount > 0
-        && request.resource.data.amount < 10000000
-        && str(request.resource.data.get('note', ''), 200)
-        && str(request.resource.data.get('meal', ''), 100)
-        && (isAdmin() || request.resource.data.to == myMember());
-      allow update: if false;
-      allow delete: if isAdmin() || (hasRole() && resource.data.to == myMember());
-    }
+    // Pre-teams data: admin read-only, kept until migrated.
+    match /members/{id} { allow read: if isAdmin(); }
+    match /meals/{id} { allow read: if isAdmin(); }
+    match /payments/{id} { allow read: if isAdmin(); }
   }
 }
