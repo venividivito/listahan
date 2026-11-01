@@ -237,7 +237,8 @@ function ml(){
    if(m.extras.length){h+=`<div class="lb">Fees, tax, discounts</div>`+m.extras.map(x=>{const t=calc({...m,extras:[x]}).sum-calc({...m,extras:[]}).sum;
     return `<div class="pr"><span>${esc(x.label||'Extra')} <span class="mu">(${x.type==='pct'?x.value+'%':peso(x.value*100)}${x.sign<0?' off':''})</span><br><span class="mu">${esc(every(x.people))} · ${x.mode==='equal'?'split equally':'by spending'}</span></span><b class="${t<0?'ok':''}">${peso(t)}</b></div>`}).join('')}
    h+=`<div class="pr tt"><span>Bill total</span><b>${peso(c.sum)}</b></div>`;
-   if(m.receipt)h+=`<div class="row" style="margin-top:8px"><button class="sm" onclick="viewReceipt('${esc(m.receipt)}')">🧾 View receipt</button></div>`;
+   const rc=m.receipts||(m.receipt?[m.receipt]:[]);
+   if(rc.length)h+=`<div class="row" style="margin-top:8px;flex-wrap:wrap">${rc.map((u,i)=>`<button class="sm" onclick="viewReceipt('${esc(u)}')">🧾 Receipt${rc.length>1?' '+(i+1):''}</button>`).join('')}</div>`;
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
     return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
@@ -260,14 +261,17 @@ async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
 const delMeal=id=>arm('m'+id,()=>T('meals').doc(id).delete().catch(()=>toast('Could not delete')));
 
 /* ---------- add / edit expense ---------- */
-const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:'',receipt:'',receiptFile:null,receiptPrev:''});
+const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:'',receipts:[]});
 function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
  i.onload=()=>{URL.revokeObjectURL(u);const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);
   c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):no(new Error('Could not process image')),'image/jpeg',.82)};
  i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('Not a valid image'))};i.src=u})}
-function pickReceipt(f){if(!f)return;if(!f.type.startsWith('image/'))return toast('Choose an image file');
- if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);D.receiptFile=f;D.receiptPrev=URL.createObjectURL(f);draw()}
-function clearReceipt(){if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);D.receiptFile=null;D.receiptPrev='';D.receipt='';draw()}
+const MAXR=10;
+function pickReceipts(fs){const l=[...fs],ok=l.filter(f=>f.type.startsWith('image/'));
+ if(ok.length<l.length)toast('Only image files are added');
+ const room=MAXR-D.receipts.length;if(ok.length>room)toast(`Up to ${MAXR} attachments`);
+ ok.slice(0,Math.max(room,0)).forEach(f=>D.receipts.push({file:f,prev:URL.createObjectURL(f)}));draw()}
+function dropReceipt(i){const r=D.receipts[i];if(r.prev)URL.revokeObjectURL(r.prev);D.receipts.splice(i,1);draw()}
 async function uploadReceipt(blob){
  if(!CLOUDINARY.cloud||!CLOUDINARY.preset)throw new Error('Cloudinary is not configured');
  const fd=new FormData();fd.append('file',blob);fd.append('upload_preset',CLOUDINARY.preset);
@@ -297,8 +301,8 @@ function vNew(){
  <div class="lb">Who's splitting?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
  <div class="card"><h2>${C.items}</h2><div class="mu">One person = only theirs. Pick several (or Everyone) for a shared cost; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
  <div class="card"><h2>Fees, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
- <div class="card"><h2>Receipt photo</h2>${D.receiptPrev?`<img src="${D.receiptPrev}" alt="Receipt preview" style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid var(--ln);display:block;margin-bottom:8px">`:D.receipt?`<div class="mu" style="margin-bottom:8px">A receipt is attached. <a href="#" onclick="viewReceipt(D.receipt);return false" style="color:var(--ac)">View</a></div>`:'<div class="mu">Optional. Take a photo or choose an image.</div>'}
- <div class="row"><label class="sm" style="flex:1;margin:0;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">${D.receiptPrev||D.receipt?'Replace':'Add receipt'}<input type="file" accept="image/*" style="display:none" onchange="pickReceipt(this.files[0])"></label>${D.receiptPrev||D.receipt?'<button class="sm" onclick="clearReceipt()">Remove</button>':''}</div></div>
+ <div class="card"><h2>Receipts</h2>${D.receipts.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${D.receipts.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||r.url.replace('/upload/','/upload/w_200,c_limit/'))}" alt="Receipt ${i+1}" onclick="${r.url?`viewReceipt('${esc(r.url)}')`:''}" style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" onclick="dropReceipt(${i})">✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>'}
+ ${D.receipts.length<MAXR?`<label class="sm" style="display:block;margin:0;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">＋ Add receipt photos<input type="file" accept="image/*" multiple style="display:none" onchange="pickReceipts(this.files)"></label>`:`<div class="mu">Maximum of ${MAXR} attachments.</div>`}</div>
  <div class="card"><h2>Breakdown</h2><div class="mu">Items + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save expense</button></div>`;
 }
 function addX(s){D.extras.push({label:s>0?'Service charge':'Discount',type:'pct',value:s>0?'10':'',sign:s,mode:'prop',all:true,people:[]});draw()}
@@ -312,18 +316,19 @@ function pv(){const el=document.getElementById('pv');if(!el||!D)return;const m=r
 async function saveMeal(){
  if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who\'s splitting');
  if(catOf(D)==='custom'&&!D.catName.trim())return toast('Name the custom category');
- const m=res(),file=D.receiptFile;delete m.id;delete m.receiptFile;delete m.receiptPrev;m.receipt=D.receipt||'';m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
+ const m=res(),rcs=D.receipts;delete m.id;delete m.receipts;delete m.receipt;m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
  if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
  if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
  try{let id=D.id;
-  if(file){toast('Uploading receipt…');m.receipt=await uploadReceipt(await shrink(file))}
-  if(!m.receipt)delete m.receipt;
+  if(rcs.some(r=>r.file))toast('Uploading receipts…');
+  const urls=[];for(const r of rcs)urls.push(r.url||await uploadReceipt(await shrink(r.file)));
+  if(urls.length)m.receipts=urls;
   if(id)await T('meals').doc(id).set(m);else{m.created=Date.now();id=(await T('meals').add(m)).id}
-  if(D.receiptPrev)URL.revokeObjectURL(D.receiptPrev);
+  rcs.forEach(r=>r.prev&&URL.revokeObjectURL(r.prev));
   expd[id]=true;D=null;tab='meals';draw();toast('Expense saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
 function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
  if(!canMeal(m))return toast('You can only edit expenses you created');
- D={id,uid:m.uid,created:m.created,category:catOf(m),catName:m.catName||'',date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',receipt:m.receipt||'',receiptFile:null,receiptPrev:'',
+ D={id,uid:m.uid,created:m.created,category:catOf(m),catName:m.catName||'',date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',receipts:(m.receipts||(m.receipt?[m.receipt]:[])).map(url=>({url})),
   items:m.items.map(i=>({name:i.name,price:String(i.price),all:f(i.people),people:[...i.people]})),
   extras:m.extras.map(x=>({label:x.label,type:x.type,value:String(x.value),sign:x.sign,mode:x.mode,all:f(x.people),people:[...x.people]}))};
  if(!D.items.length)D.items.push({name:'',price:'',all:false,people:[]});go('new')}
