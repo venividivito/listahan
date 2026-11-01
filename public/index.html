@@ -37,6 +37,14 @@ label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
 .sm{min-height:34px;padding:4px 10px;font-size:14px}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
 #toast.s{opacity:1}
+#lb{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:calc(48px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))}
+#lb[hidden]{display:none}
+#lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;background:#fff}
+#lb button{position:absolute;width:42px;padding:0;border-radius:99px}
+#lb .c{top:calc(8px + env(safe-area-inset-top,0px));right:12px}
+#lb .p,#lb .n{top:50%;transform:translateY(-50%);min-height:48px;width:40px;opacity:.9}
+#lb .p{left:6px}#lb .n{right:6px}
+#lb span{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#fff;font-size:14px}
 .sw{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu);cursor:pointer;margin:0;user-select:none}
 .sw input{display:none}
 .sw i{position:relative;width:38px;height:22px;border-radius:99px;background:var(--ln);transition:background .2s;flex:none}
@@ -62,6 +70,7 @@ darkMQ.addEventListener('change',()=>{if(mode==='system')applyTheme()});
 applyTheme();
 </script></head>
 <body><div class="w"><h1>🍽️ Tab Tracker</h1><div id="tm"></div><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
+<div id="lb" hidden onclick="closeReceipt()"><button class="c" onclick="closeReceipt()" aria-label="Close">✕</button><span></span><button class="p" onclick="event.stopPropagation();stepReceipt(-1)" aria-label="Previous">‹</button><img alt="Receipt" onclick="event.stopPropagation()"><button class="n" onclick="event.stopPropagation();stepReceipt(1)" aria-label="Next">›</button></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -238,7 +247,7 @@ function ml(){
     return `<div class="pr"><span>${esc(x.label||'Extra')} <span class="mu">(${x.type==='pct'?x.value+'%':peso(x.value*100)}${x.sign<0?' off':''})</span><br><span class="mu">${esc(every(x.people))} · ${x.mode==='equal'?'split equally':'by spending'}</span></span><b class="${t<0?'ok':''}">${peso(t)}</b></div>`}).join('')}
    h+=`<div class="pr tt"><span>Bill total</span><b>${peso(c.sum)}</b></div>`;
    const rc=m.receipts||(m.receipt?[m.receipt]:[]);
-   if(rc.length)h+=`<div class="row" style="margin-top:8px;flex-wrap:wrap">${rc.map((u,i)=>`<button class="sm" onclick="viewReceipt('${esc(u)}')">🧾 Receipt${rc.length>1?' '+(i+1):''}</button>`).join('')}</div>`;
+   if(rc.length)h+=`<div class="row" style="margin-top:8px;flex-wrap:wrap">${rc.map((u,i)=>`<button class="sm" onclick="openMealReceipt('${m.id}',${i})">🧾 Receipt${rc.length>1?' '+(i+1):''}</button>`).join('')}</div>`;
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
     return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
@@ -278,7 +287,16 @@ async function uploadReceipt(blob){
  const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY.cloud}/image/upload`,{method:'POST',body:fd}),j=await r.json().catch(()=>({}));
  if(!r.ok||!j.secure_url)throw new Error('Receipt upload failed: '+(j.error?.message||r.status));
  return j.secure_url}
-const viewReceipt=u=>window.open(u,'_blank','noopener')||(location.href=u);
+let lbList=[],lbI=0;
+function showReceipt(){const b=$('#lb'),n=lbList.length;b.querySelector('img').src=lbList[lbI];
+ b.querySelector('span').textContent=n>1?`${lbI+1} / ${n}`:'';b.querySelector('.p').hidden=b.querySelector('.n').hidden=n<2}
+function viewReceipt(list,i){lbList=list;lbI=i;showReceipt();$('#lb').hidden=false;document.body.style.overflow='hidden'}
+const stepReceipt=d=>{lbI=(lbI+d+lbList.length)%lbList.length;showReceipt()};
+const closeReceipt=()=>{const b=$('#lb');b.hidden=true;b.querySelector('img').removeAttribute('src');document.body.style.overflow=''};
+addEventListener('keydown',e=>{if($('#lb').hidden)return;if(e.key==='Escape')closeReceipt();else if(lbList.length>1&&e.key==='ArrowLeft')stepReceipt(-1);else if(lbList.length>1&&e.key==='ArrowRight')stepReceipt(1)});
+const rcOf=m=>m.receipts||(m.receipt?[m.receipt]:[]);
+const openMealReceipt=(id,i)=>viewReceipt(rcOf(meals.find(m=>m.id===id)),i);
+const openDraftReceipt=i=>viewReceipt(D.receipts.map(r=>r.prev||r.url),i);
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" onclick="${fn}(${l?`'${l}',${i},`:''}'${id}')">${esc(nm(id))}</button>`).join('')}
@@ -301,7 +319,7 @@ function vNew(){
  <div class="lb">Who's splitting?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
  <div class="card"><h2>${C.items}</h2><div class="mu">One person = only theirs. Pick several (or Everyone) for a shared cost; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
  <div class="card"><h2>Fees, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
- <div class="card"><h2>Receipts</h2>${D.receipts.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${D.receipts.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||r.url.replace('/upload/','/upload/w_200,c_limit/'))}" alt="Receipt ${i+1}" onclick="${r.url?`viewReceipt('${esc(r.url)}')`:''}" style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" onclick="dropReceipt(${i})">✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>'}
+ <div class="card"><h2>Receipts</h2>${D.receipts.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${D.receipts.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||r.url.replace('/upload/','/upload/w_200,c_limit/'))}" alt="Receipt ${i+1}" onclick="openDraftReceipt(${i})" style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" onclick="dropReceipt(${i})">✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>'}
  ${D.receipts.length<MAXR?`<label class="sm" style="display:block;margin:0;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">＋ Add receipt photos<input type="file" accept="image/*" multiple style="display:none" onchange="pickReceipts(this.files)"></label>`:`<div class="mu">Maximum of ${MAXR} attachments.</div>`}</div>
  <div class="card"><h2>Breakdown</h2><div class="mu">Items + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save expense</button></div>`;
 }
