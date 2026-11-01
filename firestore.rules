@@ -3,17 +3,91 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 12, 1);
+    function signedIn() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+    function email() {
+      return request.auth.token.email.lower();
+    }
+    function rolePath() {
+      return /databases/$(database)/documents/roles/$(email());
+    }
+    function hasRole() {
+      return signedIn() && exists(rolePath());
+    }
+    function isAdmin() {
+      return hasRole() && get(rolePath()).data.role == 'admin';
+    }
+    function myMember() {
+      return get(rolePath()).data.member;
+    }
+    function str(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // Doc ID is the lowercase Google email.
+    match /roles/{roleId} {
+      allow get: if signedIn() && roleId == email();
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['member', 'role'])
+        && request.resource.data.role in ['admin', 'contributor']
+        && str(request.resource.data.member, 100);
+      // Admins can't remove their own access.
+      allow delete: if isAdmin() && roleId != email();
+    }
+
+    match /members/{id} {
+      allow read: if hasRole();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['name', 'created'])
+        && str(request.resource.data.name, 100)
+        && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+    }
+
+    // Expenses (collection kept as "meals" for existing data).
+    function validExpense(d) {
+      return d.keys().hasOnly(['category', 'catName', 'date', 'place', 'payer', 'attendees',
+                               'items', 'extras', 'total', 'uid', 'created'])
+        && d.category in ['meal', 'transport', 'custom']
+        && str(d.get('catName', ''), 60)
+        && str(d.date, 10)
+        && str(d.get('place', ''), 200)
+        && str(d.payer, 100)
+        && d.attendees is list && d.attendees.size() > 0 && d.attendees.size() <= 100
+        && d.items is list && d.items.size() <= 200
+        && d.extras is list && d.extras.size() <= 50
+        && d.get('total', 0) is number;
+    }
+    match /meals/{id} {
+      allow read: if hasRole();
+      allow create: if hasRole()
+        && validExpense(request.resource.data)
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if hasRole()
+        && (isAdmin() || resource.data.get('uid', null) == request.auth.uid)
+        && request.resource.data.get('uid', null) == resource.data.get('uid', null)
+        && validExpense(request.resource.data);
+      allow delete: if isAdmin() || (hasRole() && resource.data.get('uid', null) == request.auth.uid);
+    }
+
+    // Contributors can only log/delete payments made to themselves.
+    match /payments/{id} {
+      allow read: if hasRole();
+      allow create: if hasRole()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal'])
+        && str(request.resource.data.from, 100)
+        && str(request.resource.data.to, 100)
+        && request.resource.data.from != request.resource.data.to
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount < 10000000
+        && str(request.resource.data.get('note', ''), 200)
+        && str(request.resource.data.get('meal', ''), 100)
+        && (isAdmin() || request.resource.data.to == myMember());
+      allow update: if false;
+      allow delete: if isAdmin() || (hasRole() && resource.data.to == myMember());
     }
   }
 }

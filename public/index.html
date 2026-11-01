@@ -3,9 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tab Tracker</title>
 <style>
-:root{--bg:#faf8f4;--card:#fff;--tx:#1f1d1a;--mu:#6f6a62;--ac:#c2410c;--ln:#e7e2d9;--ok:#15803d;--bad:#b91c1c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171513;--card:#211e1b;--tx:#f0ece6;--mu:#a39d93;--ac:#fb923c;--ln:#37332e;--ok:#4ade80;--bad:#f87171;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#171513;--card:#211e1b;--tx:#f0ece6;--mu:#a39d93;--ac:#fb923c;--ln:#37332e;--ok:#4ade80;--bad:#f87171;color-scheme:dark}
+:root{--bg:#f5f7f2;--card:#fff;--tx:#1b2118;--mu:#66705f;--ac:#4d7c0f;--on:#fff;--ln:#dfe5d8;--ok:#0f766e;--bad:#b91c1c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -17,8 +15,8 @@ nav button{flex:1;white-space:nowrap}
 .sub{border-top:1px dashed var(--ln);padding-top:10px;margin-top:10px}
 button,input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:9px 10px;min-height:42px}
 button{cursor:pointer}
-button.pri{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600;width:100%;margin-top:10px}
-nav button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+button.pri{background:var(--ac);border-color:var(--ac);color:var(--on);font-weight:600;width:100%;margin-top:10px}
+nav button.on{background:var(--ac);border-color:var(--ac);color:var(--on)}
 input,select{width:100%}
 label{display:block;font-size:13px;color:var(--mu);margin-bottom:8px}
 label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
@@ -27,7 +25,8 @@ label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
 .x{flex:none;width:42px;padding:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
 .chip{padding:6px 12px;min-height:34px;border-radius:99px}
-.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.chip.on{background:var(--ac);border-color:var(--ac);color:var(--on)}
+.sw2{width:14px;height:14px;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:6px;border:1px solid var(--ln)}
 .lb,.mu{font-size:13px;color:var(--mu);margin:6px 0 2px}
 .pr{display:flex;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--ln);align-items:center}
 .pr span:first-child{flex:1}.tt{font-weight:700}
@@ -38,7 +37,30 @@ label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
 .sm{min-height:34px;padding:4px 10px;font-size:14px}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
 #toast.s{opacity:1}
-</style></head>
+.sw{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu);cursor:pointer;margin:0;user-select:none}
+.sw input{display:none}
+.sw i{position:relative;width:38px;height:22px;border-radius:99px;background:var(--ln);transition:background .2s;flex:none}
+.sw i::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw input:checked+i{background:var(--ac)}
+.sw input:checked+i::after{transform:translateX(16px)}
+</style>
+<script>
+// [bg,card,tx,mu,ac,on,ln,ok,bad]
+const PAL={
+ matcha:{name:'Matcha',light:['#f5f7f2','#fff','#1b2118','#66705f','#4d7c0f','#fff','#dfe5d8','#0f766e','#b91c1c'],dark:['#121510','#1b1f18','#e9eee4','#9aa591','#a3e635','#121510','#2e3529','#2dd4bf','#f87171']},
+ ube:{name:'Ube',light:['#f8f6fb','#fff','#1e1a26','#6c6478','#7c3aed','#fff','#e6e0ef','#15803d','#b91c1c'],dark:['#15121b','#1e1a26','#eeeaf4','#a39bb0','#a78bfa','#15121b','#332c3f','#4ade80','#f87171']},
+ ocean:{name:'Ocean',light:['#f4f7fa','#fff','#15202b','#5f6b78','#0369a1','#fff','#dde4eb','#15803d','#b91c1c'],dark:['#0f151b','#172029','#e6edf3','#93a1ae','#38bdf8','#0f151b','#26323d','#4ade80','#f87171']},
+ mango:{name:'Mango',light:['#fffbf2','#fff','#22190c','#75674f','#b45309','#fff','#efe4cc','#15803d','#b91c1c'],dark:['#17130c','#211b12','#f5eee2','#aa9d86','#fbbf24','#17130c','#3a3122','#4ade80','#f87171']},
+ slate:{name:'Slate',light:['#f6f6f7','#fff','#18181b','#6b6b73','#18181b','#fff','#e4e4e7','#15803d','#b91c1c'],dark:['#0f0f11','#18181b','#f4f4f5','#a1a1aa','#f4f4f5','#18181b','#2a2a2e','#4ade80','#f87171']}
+};
+let palette=PAL[localStorage.getItem('palette')]?localStorage.getItem('palette'):'matcha',mode=['light','dark'].includes(localStorage.getItem('mode'))?localStorage.getItem('mode'):'system';
+const darkMQ=matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(){const d=mode==='dark'||(mode==='system'&&darkMQ.matches),r=document.documentElement.style;
+ PAL[palette][d?'dark':'light'].forEach((v,i)=>r.setProperty('--'+['bg','card','tx','mu','ac','on','ln','ok','bad'][i],v));
+ r.colorScheme=d?'dark':'light';document.querySelector('meta[name=theme-color]')?.setAttribute('content',PAL[palette][d?'dark':'light'][0])}
+darkMQ.addEventListener('change',()=>{if(mode==='system')applyTheme()});
+applyTheme();
+</script></head>
 <body><div class="w"><h1>🍽️ Tab Tracker</h1><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -60,6 +82,9 @@ const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minim
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 let db=null,members=[],meals=[],pays=[],tab='bal',me='',D=null,expd={},armed='',seenM=false;
 let pay={from:'',to:'',amount:'',note:''},user=null,role=null,roles=[];
+let autoNet=localStorage.getItem('autoNet')!=='0';
+function setNet(v){autoNet=v;localStorage.setItem('autoNet',v?'1':'0');draw()}
+function setTheme(p,m){palette=p;mode=m;localStorage.setItem('palette',p);localStorage.setItem('mode',m);applyTheme();draw()}
 const isAdmin=()=>role?.role==='admin';
 const canMeal=m=>isAdmin()||(!!m.uid&&m.uid===user?.uid);
 const canPayTo=to=>isAdmin()||(!!me&&to===me);
@@ -67,6 +92,11 @@ const nm=id=>(members.find(m=>m.id===id)||{name:'Former member'}).name;
 function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2600)}
 const opts=(ids,cur,blank)=>(blank?`<option value="">${blank}</option>`:'')+ids.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(nm(i))}</option>`).join('');
 const sel=(a,b)=>a===b?'selected':'';
+const CAT={meal:{icon:'🍽️',name:'Meal',place:'Restaurant',items:'Orders',item:'Item'},transport:{icon:'🚕',name:'Transport',place:'Route or ride (e.g. Grab to office)',items:'Fares & costs',item:'Fare, toll, gas…'},custom:{icon:'🧾',name:'Custom',place:'Description',items:'Items',item:'Item'}};
+const catOf=m=>CAT[m.category]?m.category:'meal';
+const catName=m=>catOf(m)==='custom'?(m.catName||'Other'):CAT[catOf(m)].name;
+const title=m=>`${CAT[catOf(m)].icon} ${m.place||catName(m)}`;
+let fcat='all';
 
 /* ---------- calculation ---------- */
 function calc(m){
@@ -90,14 +120,17 @@ function ledger(){
    const x=Math.min(o-d,pool[k]);pool[k]-=x;st[m.id][p]={o,paid:d+x}})});
  const rows=[];
  members.forEach((a,i)=>members.slice(i+1).forEach(b=>{
-  const n=((owed[a.id+'>'+b.id]||0)-(paid[a.id+'>'+b.id]||0))-((owed[b.id+'>'+a.id]||0)-(paid[b.id+'>'+a.id]||0));
-  if(n>0)rows.push({d:a.id,c:b.id,n});else if(n<0)rows.push({d:b.id,c:a.id,n:-n})}));
+  let x=(owed[a.id+'>'+b.id]||0)-(paid[a.id+'>'+b.id]||0),y=(owed[b.id+'>'+a.id]||0)-(paid[b.id+'>'+a.id]||0);
+  if(autoNet){const n=x-y;if(n>0)rows.push({d:a.id,c:b.id,n});else if(n<0)rows.push({d:b.id,c:a.id,n:-n});return}
+  // overpayment in one direction becomes a debt in the other
+  if(x<0){y-=x;x=0}if(y<0){x-=y;y=0}
+  if(x>0)rows.push({d:a.id,c:b.id,n:x});if(y>0)rows.push({d:b.id,c:a.id,n:y})}));
  return{st,rows};
 }
 const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—':r.every(x=>x.paid>=x.o)?'Settled':r.some(x=>x.paid>0)?'Partial':'Unpaid'};
 
 /* ---------- navigation ---------- */
-function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Meals'],['new','＋ Meal'],['people','People']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function nav(){$('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['new','＋ Expense'],['people','People']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function tog(k){expd[k]=!expd[k];draw()}
 function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
 function draw(){nav();$('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv()}
@@ -120,8 +153,10 @@ function vBal(){
  if(bp&&ids.includes(bp))return vPerson(L,bp);
  let h='';
  if(me&&ids.includes(me)){h+=`<div class="card"><h2>${esc(nm(me))}, your summary</h2><div class="pr"><span>You owe</span><b class="${owes(L,me)?'bad':''}">${peso(owes(L,me))}</b></div><div class="pr"><span>Owed to you</span><b class="${owedTo(L,me)?'ok':''}">${peso(owedTo(L,me))}</b></div></div>`}
- const list=ids.map(id=>({id,net:owedTo(L,id)-owes(L,id)})).sort((a,b)=>Math.abs(b.net)-Math.abs(a.net));
- h+=`<div class="card"><h2>Balances</h2><div class="mu">Tap a name to see their breakdown and record payments.</div>`+list.map(x=>`<div class="pr hd" onclick="openP('${x.id}')"><span><b>${esc(nm(x.id))}</b></span><span class="${x.net<0?'bad':x.net>0?'ok':'mu'}">${x.net<0?'owes '+peso(-x.net):x.net>0?'is owed '+peso(x.net):'settled'}</span><span class="mu">›</span></div>`).join('')+'</div>';
+ const list=ids.map(id=>({id,ow:owes(L,id),ot:owedTo(L,id),net:owedTo(L,id)-owes(L,id)})).sort((a,b)=>autoNet?Math.abs(b.net)-Math.abs(a.net):(b.ow+b.ot)-(a.ow+a.ot));
+ const amt=x=>autoNet?`<span class="${x.net<0?'bad':x.net>0?'ok':'mu'}">${x.net<0?'owes '+peso(-x.net):x.net>0?'is owed '+peso(x.net):'settled'}</span>`
+  :`<span style="text-align:right">${!x.ow&&!x.ot?'<span class="mu">settled</span>':[x.ow?`<span class="bad">owes ${peso(x.ow)}</span>`:'',x.ot?`<span class="ok">is owed ${peso(x.ot)}</span>`:''].filter(Boolean).join('<br>')}</span>`;
+ h+=`<div class="card"><div class="hd" style="cursor:default;margin-bottom:6px"><h2 style="margin:0">Balances</h2><label class="sw"><span>Auto-net</span><input type="checkbox" ${autoNet?'checked':''} onchange="setNet(this.checked)"><i></i></label></div><div class="mu">${autoNet?'Mutual debts are offset against each other.':'Mutual debts are shown separately, not offset.'} Tap a name to see their breakdown and record payments.</div>`+list.map(x=>`<div class="pr hd" onclick="openP('${x.id}')"><span><b>${esc(nm(x.id))}</b></span>${amt(x)}<span class="mu">›</span></div>`).join('')+'</div>';
  const ps=[...pays].sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,10);
  if(ps.length)h+=`<div class="card"><h2>Recent payments</h2>`+ps.map(payRow).join('')+'</div>';
  return h;
@@ -130,7 +165,7 @@ const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<b
 function openP(id){bp=id;const r=ledger().rows.filter(x=>canPayTo(x.c));const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
  pay=o?{from:o.d,to:o.c,amount:(o.n/100).toFixed(2),note:''}:{from:'',to:isAdmin()?'':me,amount:'',note:''};draw();scrollTo(0,0)}
 function mrow({m,p,r}){const k=m.id+p,left=r.o-r.paid,st=left<=0?'Settled':r.paid>0?'Partial':'Unpaid';
- return `<div class="sub"><div class="hd" onclick="tog('${k}')"><div><b>${esc(m.place||'Meal')}</b><div class="mu">${esc(m.date)} · ${esc(nm(p))} → ${esc(nm(m.payer))}</div></div><div style="text-align:right"><b>${peso(r.o)}</b><br><span class="badge ${st}">${st==='Partial'?'Partial · '+peso(left)+' left':st}</span></div></div>`+
+ return `<div class="sub"><div class="hd" onclick="tog('${k}')"><div><b>${esc(title(m))}</b><div class="mu">${esc(m.date)} · ${esc(catName(m))} · ${esc(nm(p))} → ${esc(nm(m.payer))}</div></div><div style="text-align:right"><b>${peso(r.o)}</b><br><span class="badge ${st}">${st==='Partial'?'Partial · '+peso(left)+' left':st}</span></div></div>`+
  (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0&&canPayTo(m.payer)?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
 function vPerson(L,id){
  const ids=members.map(m=>m.id),ow=L.rows.filter(r=>r.d===id),ot=L.rows.filter(r=>r.c===id);
@@ -138,7 +173,7 @@ function vPerson(L,id){
  h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button>`:''}</div>`).join('');
  h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
  if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
- h+='<p class="mu">Totals are netted between each pair of people.</p></div>';
+ h+=`<p class="mu">${autoNet?'Totals are netted between each pair of people.':'Auto-net is off: debts in each direction are shown separately.'}</p></div>`;
  if(isAdmin()||me)h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
  <div class="row"><input inputmode="decimal" placeholder="Amount ₱" value="${esc(pay.amount)}" oninput="pay.amount=this.value"><input placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" oninput="pay.note=this.value"></div>
  <button class="pri" onclick="savePay()">Save payment</button></div>`;
@@ -146,8 +181,8 @@ function vPerson(L,id){
  [...meals].sort(newest).forEach(m=>{const s=L.st[m.id]||{};
   if(m.payer===id)Object.keys(s).forEach(p=>theirs.push({m,p,r:s[p]}));else if(s[id])mine.push({m,p:id,r:s[id]})});
  const sortOpen=a=>[...a].sort((x,y)=>((y.r.o-y.r.paid>0)-(x.r.o-x.r.paid>0)));
- h+=`<div class="card"><h2>Meals ${esc(nm(id))} owes for</h2><div class="mu">Tap a meal to see what was ordered.</div>${mine.length?sortOpen(mine).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
- h+=`<div class="card"><h2>Meals ${esc(nm(id))} paid for</h2>${theirs.length?sortOpen(theirs).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
+ h+=`<div class="card"><h2>Expenses ${esc(nm(id))} owes for</h2><div class="mu">Tap an expense to see the breakdown.</div>${mine.length?sortOpen(mine).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
+ h+=`<div class="card"><h2>Expenses ${esc(nm(id))} paid for</h2>${theirs.length?sortOpen(theirs).map(mrow).join(''):'<p class="mu">None.</p>'}</div>`;
  const hp=pays.filter(p=>p.from===id||p.to===id).sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,15);
  if(hp.length)h+=`<div class="card"><h2>Payment history</h2>`+hp.map(payRow).join('')+'</div>';
  return h;
@@ -157,16 +192,19 @@ async function savePay(){const a=parseFloat(pay.amount);if(!isAdmin())pay.to=me;
  try{await db.collection('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
 const delPay=id=>arm('p'+id,()=>db.collection('payments').doc(id).delete().catch(()=>toast('Could not delete')));
 
-/* ---------- meals list ---------- */
+/* ---------- expenses list ---------- */
 function vMeals(){
- if(!meals.length)return '<div class="card mu">No meals yet. Tap ＋ Meal to add one.</div>';
+ if(!meals.length)return '<div class="card mu">No expenses yet. Tap ＋ Expense to add one.</div>';
  const L=ledger(),names=a=>a.length?a.map(nm).join(', '):'nobody';
- return [...meals].sort(newest).map(m=>{
+ const cats=['all',...Object.keys(CAT).filter(k=>meals.some(m=>catOf(m)===k))];if(!cats.includes(fcat))fcat='all';
+ const list=[...meals].filter(m=>fcat==='all'||catOf(m)===fcat).sort(newest);
+ const fl=cats.length>2?`<div class="chips" style="margin-bottom:10px">${cats.map(k=>`<button type="button" class="chip ${fcat===k?'on':''}" onclick="fcat='${k}';draw()">${k==='all'?'All':CAT[k].icon+' '+CAT[k].name}</button>`).join('')}</div>`:'';
+ return fl+list.map(m=>{
   const c=calc(m),s=status(m,L),o=expd[m.id],every=a=>a.length>1&&a.length===m.attendees.length?'Everyone':names(a);
-  let h=`<div class="card"><div class="hd" onclick="tog('${m.id}')"><div><b>${esc(m.place||'Meal')}</b><div class="mu">${esc(m.date)} · paid by ${esc(nm(m.payer))}</div><div class="mu" style="color:var(--ac)">${o?'▾ Hide breakdown':'▸ View breakdown'}</div></div><div style="text-align:right"><b>${peso(c.sum)}</b><br><span class="badge ${s}">${s}</span></div></div>`;
+  let h=`<div class="card"><div class="hd" onclick="tog('${m.id}')"><div><b>${esc(title(m))}</b><div class="mu">${esc(m.date)} · ${esc(catName(m))} · paid by ${esc(nm(m.payer))}</div><div class="mu" style="color:var(--ac)">${o?'▾ Hide breakdown':'▸ View breakdown'}</div></div><div style="text-align:right"><b>${peso(c.sum)}</b><br><span class="badge ${s}">${s}</span></div></div>`;
   if(o){
-   h+=`<div class="sub"><div class="lb">Orders</div>`+m.items.map(it=>`<div class="pr"><span>${esc(it.name||'Item')}<br><span class="mu">${esc(every(it.people))}</span></span><b>${peso(it.price*100)}</b></div>`).join('');
-   if(m.extras.length){h+=`<div class="lb">Service charge, tax, discounts</div>`+m.extras.map(x=>{const t=calc({...m,extras:[x]}).sum-calc({...m,extras:[]}).sum;
+   h+=`<div class="sub"><div class="lb">${CAT[catOf(m)].items}</div>`+m.items.map(it=>`<div class="pr"><span>${esc(it.name||'Item')}<br><span class="mu">${esc(every(it.people))}</span></span><b>${peso(it.price*100)}</b></div>`).join('');
+   if(m.extras.length){h+=`<div class="lb">Fees, tax, discounts</div>`+m.extras.map(x=>{const t=calc({...m,extras:[x]}).sum-calc({...m,extras:[]}).sum;
     return `<div class="pr"><span>${esc(x.label||'Extra')} <span class="mu">(${x.type==='pct'?x.value+'%':peso(x.value*100)}${x.sign<0?' off':''})</span><br><span class="mu">${esc(every(x.people))} · ${x.mode==='equal'?'split equally':'by spending'}</span></span><b class="${t<0?'ok':''}">${peso(t)}</b></div>`}).join('')}
    h+=`<div class="pr tt"><span>Bill total</span><b>${peso(c.sum)}</b></div>`;
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
@@ -175,7 +213,7 @@ function vMeals(){
    (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
   return h+'</div>'}).join('');
 }
-function msg(m,p){const c=calc(m),i=m.attendees.indexOf(p),ln=[`🍽️ ${m.place||'Meal'} · ${m.date}`];
+function msg(m,p){const c=calc(m),i=m.attendees.indexOf(p),ln=[`${title(m)} · ${m.date}`];
  m.items.forEach(it=>{if(it.people.includes(p)){const n=it.people.length;ln.push(`• ${it.name||'Item'}${n>1?` (1/${n} of ${peso(it.price*100)})`:''}: ${peso(it.price*100/n)}`)}});
  c.L.filter(l=>l.p===p).forEach(l=>ln.push(`• ${l.label||'Extra'}: ${peso(l.v)}`));
  ln.push(`Total: ${peso(c.tot[i])}. Please pay ${nm(m.payer)}.`);return ln.join('\n')}
@@ -186,8 +224,8 @@ async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
  try{await db.collection('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
 const delMeal=id=>arm('m'+id,()=>db.collection('meals').doc(id).delete().catch(()=>toast('Could not delete')));
 
-/* ---------- add / edit meal ---------- */
-const newDraft=()=>({id:null,date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:''});
+/* ---------- add / edit expense ---------- */
+const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:''});
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" onclick="${fn}(${l?`'${l}',${i},`:''}'${id}')">${esc(nm(id))}</button>`).join('')}
@@ -196,36 +234,41 @@ function togL(l,i,id){const x=D[l][i];let ps=eff(x);ps=ps.includes(id)?ps.filter
 function allL(l,i){const x=D[l][i];x.all=!x.all;x.people=[];draw()}
 function vNew(){
  const ids=members.map(m=>m.id);if(!ids.length)return '<div class="card">Add your teammates under <b>People</b> first.</div>';
- const it=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Item" value="${esc(x.name)}" oninput="D.items[${i}].name=this.value"><input class="g1" inputmode="decimal" placeholder="Price" value="${esc(x.price)}" oninput="D.items[${i}].price=this.value;pv()"><button class="x" onclick="D.items.splice(${i},1);draw()">✕</button></div>
+ const C=CAT[catOf(D)],customs=[...new Set(meals.filter(m=>catOf(m)==='custom'&&m.catName).map(m=>m.catName))];
+ const it=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="${C.item}" value="${esc(x.name)}" oninput="D.items[${i}].name=this.value"><input class="g1" inputmode="decimal" placeholder="Price" value="${esc(x.price)}" oninput="D.items[${i}].price=this.value;pv()"><button class="x" onclick="D.items.splice(${i},1);draw()">✕</button></div>
   <div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('items',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','items',i)}</div></div>`;
  const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Label" value="${esc(x.label)}" oninput="D.extras[${i}].label=this.value;pv()"><input class="g1" inputmode="decimal" placeholder="Value" value="${esc(x.value)}" oninput="D.extras[${i}].value=this.value;pv()"><select style="width:64px" onchange="D.extras[${i}].type=this.value;pv()"><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" onclick="D.extras.splice(${i},1);draw()">✕</button></div>
   <div class="row"><select onchange="D.extras[${i}].sign=+this.value;pv()"><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select onchange="D.extras[${i}].mode=this.value;pv()"><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
   <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('extras',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
- return `<div class="card"><h2>${D.id?'Edit meal':'New meal'}</h2><div class="row"><label class="g1">Date<input type="date" value="${D.date}" oninput="D.date=this.value"></label><label class="g1">Place<input placeholder="Restaurant" value="${esc(D.place)}" oninput="D.place=this.value"></label></div>
+ return `<div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
+ <div class="lb">Category</div><div class="chips">${Object.entries(CAT).map(([k,c])=>`<button type="button" class="chip ${catOf(D)===k?'on':''}" onclick="D.category='${k}';draw()">${c.icon} ${c.name}</button>`).join('')}</div>
+ ${catOf(D)==='custom'?`<label>Category name<input list="cn" placeholder="e.g. Groceries, Lodging, Gift" value="${esc(D.catName)}" oninput="D.catName=this.value"></label><datalist id="cn">${customs.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`:''}
+ <div class="row"><label class="g1">Date<input type="date" value="${D.date}" oninput="D.date=this.value"></label><label class="g1">${catOf(D)==='meal'?'Place':'Description'}<input placeholder="${esc(C.place)}" value="${esc(D.place)}" oninput="D.place=this.value"></label></div>
  <label>Who paid?<select onchange="D.payer=this.value">${opts(ids,D.payer,'Choose…')}</select></label>
- <div class="lb">Who was there?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
- <div class="card"><h2>Orders</h2><div class="mu">One person = their own order. Pick several (or Everyone) for a shared dish; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
- <div class="card"><h2>Service charge, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
- <div class="card"><h2>Breakdown</h2><div class="mu">Orders + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save meal</button></div>`;
+ <div class="lb">Who's splitting?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
+ <div class="card"><h2>${C.items}</h2><div class="mu">One person = only theirs. Pick several (or Everyone) for a shared cost; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
+ <div class="card"><h2>Fees, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
+ <div class="card"><h2>Breakdown</h2><div class="mu">Items + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save expense</button></div>`;
 }
 function addX(s){D.extras.push({label:s>0?'Service charge':'Discount',type:'pct',value:s>0?'10':'',sign:s,mode:'prop',all:true,people:[]});draw()}
 function pv(){const el=document.getElementById('pv');if(!el||!D)return;const m=res(),c=calc(m);let h='';
  m.attendees.forEach((p,i)=>{h+=`<div class="pr"><span>${esc(nm(p))}</span><span class="mu">${peso(c.S[p])} + ${peso(c.E[p])}</span><b>${peso(c.tot[i])}</b></div>`});
- if(!m.attendees.length)h='<p class="mu">Pick who was there.</p>';else h+=`<div class="pr tt"><span>Total</span><span></span><b>${peso(c.sum)}</b></div>`;
+ if(!m.attendees.length)h='<p class="mu">Pick who\'s splitting.</p>';else h+=`<div class="pr tt"><span>Total</span><span></span><b>${peso(c.sum)}</b></div>`;
  const r=Math.round((parseFloat(D.total)||0)*100);
  if(r){const d=c.sum-r;h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt. Check items and extras.</p>`}
  const un=m.items.filter(i=>i.price&&!i.people.length).length;if(un)h+=`<p class="bad">${un} item(s) not assigned to anyone.</p>`;
  el.innerHTML=h}
 async function saveMeal(){
- if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who was there');
- const m=res();delete m.id;m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
+ if(!D.payer)return toast('Choose who paid');if(!D.attendees.length)return toast('Choose who\'s splitting');
+ if(catOf(D)==='custom'&&!D.catName.trim())return toast('Name the custom category');
+ const m=res();delete m.id;m.category=catOf(D);m.catName=m.category==='custom'?D.catName.trim():'';m.total=parseFloat(D.total)||0;m.items=m.items.filter(i=>i.price>0);m.extras=m.extras.filter(x=>x.value>0);
  if(m.items.some(i=>!i.people.length))return toast('Assign every item to someone');
  if(!D.id)m.uid=user.uid;Object.keys(m).forEach(k=>m[k]===undefined&&delete m[k]);
  try{let id=D.id;if(id)await db.collection('meals').doc(id).set(m);else{m.created=Date.now();id=(await db.collection('meals').add(m)).id}
-  expd[id]=true;D=null;tab='meals';draw();toast('Meal saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
+  expd[id]=true;D=null;tab='meals';draw();toast('Expense saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}}
 function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=>l.length>1&&l.length===n;
- if(!canMeal(m))return toast('You can only edit meals you created');
- D={id,uid:m.uid,created:m.created,date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',
+ if(!canMeal(m))return toast('You can only edit expenses you created');
+ D={id,uid:m.uid,created:m.created,category:catOf(m),catName:m.catName||'',date:m.date,place:m.place||'',payer:m.payer,attendees:[...m.attendees],total:m.total?String(m.total):'',
   items:m.items.map(i=>({name:i.name,price:String(i.price),all:f(i.people),people:[...i.people]})),
   extras:m.extras.map(x=>({label:x.label,type:x.type,value:String(x.value),sign:x.sign,mode:x.mode,all:f(x.people),people:[...x.people]}))};
  if(!D.items.length)D.items.push({name:'',price:'',all:false,people:[]});go('new')}
@@ -234,6 +277,8 @@ function editMeal(id){const m=meals.find(x=>x.id===id),n=m.attendees.length,f=l=
 function vPeople(){
  const used=id=>meals.some(m=>m.payer===id||m.attendees.includes(id))||pays.some(p=>p.from===id||p.to===id),ids=members.map(m=>m.id),A=isAdmin();
  let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${esc(nm(me))} · ${A?'Admin':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
+ <div class="card"><h2>Appearance</h2><div class="lb">Mode</div><div class="chips">${[['system','System'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" class="chip ${mode===k?'on':''}" onclick="setTheme(palette,'${k}')">${l}</button>`).join('')}</div>
+ <div class="lb">Palette</div><div class="chips">${Object.entries(PAL).map(([k,p])=>`<button type="button" class="chip ${palette===k?'on':''}" onclick="setTheme('${k}',mode)"><span class="sw2" style="background:${p[(mode==='dark'||(mode==='system'&&darkMQ.matches))?'dark':'light'][4]}"></span>${p.name}</button>`).join('')}</div></div>
  <div class="card"><h2>Team</h2>${members.map(m=>`<div class="pr"><span>${esc(m.name)}</span>${!A?'':used(m.id)?'<span class="mu">in use</span>':`<button class="sm" onclick="delMember('${m.id}')">${dlabel('u'+m.id,'Remove')}</button>`}</div>`).join('')||'<p class="mu">No one yet.</p>'}
  ${A?'<div class="row sub"><input id="nn" placeholder="Name" onkeydown="if(event.key===\'Enter\')addMember()"><button onclick="addMember()">Add</button></div>':''}</div>`;
  if(A)h+=`<div class="card"><h2>Access</h2><div class="mu">Google accounts allowed to sign in, and who they are.</div>${roles.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${esc(nm(r.member))} · ${r.role==='admin'?'Admin':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" onclick="delRole('${esc(r.id)}')">${dlabel('r'+r.id,'Remove')}</button>`}</div>`).join('')}
