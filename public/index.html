@@ -112,7 +112,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 let db=null,members=[],meals=[],pays=[],tab='bal',me='',D=null,expd={},armed='',seenM=false;
-let pay={from:'',to:'',amount:'',note:''},user=null,role=null,roles=[];
+let pay={from:'',to:'',amount:'',note:'',receipts:[]},paying=false,user=null,role=null,roles=[];
 let teams=[],cur=localStorage.getItem('team')||'',legacy=false,tsubs=[],gsubs=[];
 const T=n=>db.collection('teams').doc(cur).collection(n);
 const tname=id=>(teams.find(t=>t.id===id)||{name:'Team'}).name;
@@ -132,7 +132,7 @@ function setNet(v){autoNet=v;localStorage.setItem('autoNet',v?'1':'0');clearTime
 function setTheme(p,m){palette=p;mode=m;localStorage.setItem('palette',p);localStorage.setItem('mode',m);applyTheme();draw()}
 const isAdmin=()=>role?.role==='admin';
 const canMeal=m=>isAdmin()||(!!m.uid&&m.uid===user?.uid);
-const canPayTo=to=>isAdmin()||(!!me&&to===me);
+const canPay=(from,to)=>isAdmin()||(!!me&&(from===me||to===me));
 const nm=id=>(members.find(m=>m.id===id)||{name:'Former member'}).name;
 function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2600)}
 const opts=(ids,cur,blank)=>(blank?`<option value="">${blank}</option>`:'')+ids.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(nm(i))}</option>`).join('');
@@ -218,22 +218,28 @@ function vBal(){
  if(ps.length)h+=`<div class="card"><h2>Recent payments</h2>`+ps.map(payRow).join('')+'</div>';
  return h;
 }
-const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span></span><b>${peso(Math.round(p.amount*100))}</b>${canPayTo(p.to)?`<button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button>`:''}</div>`;
-function openP(id){bp=id;const r=ledger().rows.filter(x=>canPayTo(x.c));const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
- pay=o?{from:o.d,to:o.c,amount:(o.n/100).toFixed(2),note:''}:{from:'',to:isAdmin()?'':me,amount:'',note:''};draw();scrollTo(0,0)}
+const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span>${(p.receipts||[]).length?`<br>${p.receipts.map((u,i)=>`<button class="sm" onclick="openPayReceipt('${p.id}',${i})">📎 Attachment${p.receipts.length>1?' '+(i+1):''}</button>`).join(' ')}`:''}</span><b>${peso(Math.round(p.amount*100))}</b>${canPay(p.from,p.to)?`<button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button>`:''}</div>`;
+const openPayReceipt=(id,i)=>viewReceipt(pays.find(p=>p.id===id).receipts||[],i);
+const blankPay=(f,t,n)=>({from:f,to:t,amount:n?(n/100).toFixed(2):'',note:'',receipts:[]});
+function openP(id){bp=id;const r=ledger().rows.filter(x=>canPay(x.d,x.c));const o=r.find(x=>x.d===id)||r.find(x=>x.c===id);
+ pay.receipts.forEach(r=>r.prev&&URL.revokeObjectURL(r.prev));
+ pay=o?blankPay(o.d,o.c,o.n):blankPay('',isAdmin()?'':me);draw();scrollTo(0,0)}
+// contributors must always be one side of the payment
+function setPayParty(k,v){pay[k]=v;if(!isAdmin()&&me&&pay.from!==me&&pay.to!==me)pay[k==='from'?'to':'from']=me;draw()}
 function mrow({m,p,r}){const k=m.id+p,left=r.o-r.paid,st=left<=0?'Settled':r.paid>0?'Partial':'Unpaid';
  return `<div class="sub"><div class="hd" onclick="tog('${k}')"><div><b>${esc(title(m))}</b><div class="mu">${esc(m.date)} · ${esc(catName(m))} · ${esc(nm(p))} → ${esc(nm(m.payer))}</div></div><div style="text-align:right"><b>${peso(r.o)}</b><br><span class="badge ${st}">${st==='Partial'?'Partial · '+peso(left)+' left':st}</span></div></div>`+
- (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0&&canPayTo(m.payer)?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
+ (expd[k]?`<div style="margin-top:8px">${det(m,p)}<div class="row" style="margin-top:8px"><button class="sm" onclick="cp('${m.id}','${p}')">Copy message</button>${left>0&&canPay(p,m.payer)?`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:''}</div></div>`:'')+'</div>'}
 function vPerson(L,id){
  const ids=members.map(m=>m.id),ow=L.rows.filter(r=>r.d===id),ot=L.rows.filter(r=>r.c===id);
  let h=`<button class="sm" onclick="bp=null;draw()">← All balances</button><div class="card" style="margin-top:10px"><h2>${esc(nm(id))}</h2>`;
- h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button>`:''}</div>`).join('');
- h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
+ h+=ow.map(r=>`<div class="pr"><span>Owes ${esc(nm(r.c))}</span><b class="bad">${peso(r.n)}</b>${canPay(r.d,r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Pay</button>`:''}</div>`).join('');
+ h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPay(r.d,r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
  if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
  h+=`<p class="mu">${autoNet?'Totals are netted between each pair of people.':'Auto-net is off: debts in each direction are shown separately.'}</p></div>`;
- if(isAdmin()||[...ow,...ot].some(r=>canPayTo(r.c)))h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
+ if(isAdmin()||id===me||[...ow,...ot].some(r=>canPay(r.d,r.c)))h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments to or from you.</div>'}<div class="row"><select onchange="setPayParty('from',this.value)">${opts(ids,pay.from,'From')}</select><select onchange="setPayParty('to',this.value)">${opts(ids,pay.to,'To')}</select></div>
  <div class="row"><input inputmode="decimal" placeholder="Amount ₱" value="${esc(pay.amount)}" oninput="pay.amount=this.value"><input placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" oninput="pay.note=this.value"></div>
- <button class="pri" onclick="savePay()">Save payment</button></div>`;
+ <div class="lb">Attachments</div>${receiptPicker(pay.receipts,'pay')}
+ <button class="pri" onclick="savePay()">${paying?'Saving…':'Save payment'}</button></div>`;
  const mine=[],theirs=[];
  [...meals].sort(newest).forEach(m=>{const s=L.st[m.id]||{};
   if(m.payer===id)Object.keys(s).forEach(p=>theirs.push({m,p,r:s[p]}));else if(s[id])mine.push({m,p:id,r:s[id]})});
@@ -244,9 +250,17 @@ function vPerson(L,id){
  if(hp.length)h+=`<div class="card"><h2>Payment history</h2>`+hp.map(payRow).join('')+'</div>';
  return h;
 }
-function setPay(f,t,n){pay={from:f,to:t,amount:(n/100).toFixed(2),note:''};draw();toast('Payment form filled in')}
-async function savePay(){const a=parseFloat(pay.amount);if(!isAdmin())pay.to=me;if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
- try{await T('payments').add({from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()});pay={...pay,amount:'',note:''};toast('Payment saved')}catch(e){toast('Could not save')}}
+function setPay(f,t,n){pay.receipts.forEach(r=>r.prev&&URL.revokeObjectURL(r.prev));pay=blankPay(f,t,n);draw();toast('Payment form filled in')}
+async function savePay(){if(paying)return;const a=parseFloat(pay.amount);
+ if(!pay.from||!pay.to||pay.from===pay.to||!(a>0))return toast('Pick two different people and an amount');
+ if(!canPay(pay.from,pay.to))return toast('You can only record payments to or from you');
+ paying=true;
+ try{const d={from:pay.from,to:pay.to,amount:a,note:pay.note,date:today(),created:Date.now()},rcs=pay.receipts;
+  if(rcs.some(r=>r.file)){toast('Uploading attachments…');draw()}
+  const urls=[];for(const r of rcs)urls.push(r.url||await uploadReceipt(await shrink(r.file)));
+  if(urls.length)d.receipts=urls;
+  await T('payments').add(d);rcs.forEach(r=>r.prev&&URL.revokeObjectURL(r.prev));pay={...pay,amount:'',note:'',receipts:[]};toast('Payment saved')}catch(e){toast('Could not save: '+(e.message||e.code||''))}
+ paying=false;draw()}
 const delPay=id=>arm('p'+id,()=>T('payments').doc(id).delete().catch(()=>toast('Could not delete')));
 
 /* ---------- expenses list ---------- */
@@ -277,7 +291,7 @@ function ml(){
    if(rc.length)h+=`<div class="row" style="margin-top:8px;flex-wrap:wrap">${rc.map((u,i)=>`<button class="sm" onclick="openMealReceipt('${m.id}',${i})">🧾 Receipt${rc.length>1?' '+(i+1):''}</button>`).join('')}</div>`;
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
-    return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPayTo(m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
+    return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" onclick="cp('${m.id}','${p}')">Copy</button>${left>0?!canPay(p,m.payer)?'':`<button class="sm" onclick="markPaid('${m.id}','${p}',${left})">Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
    (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" onclick="editMeal('${m.id}')">Edit</button><button class="sm" onclick="delMeal('${m.id}')">${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
   return h+'</div>'};
  // searching auto-opens the completed section so matches aren't hidden
@@ -303,11 +317,12 @@ function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i
   c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):no(new Error('Could not process image')),'image/jpeg',.82)};
  i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('Not a valid image'))};i.src=u})}
 const MAXR=10;
-function pickReceipts(fs){const l=[...fs],ok=l.filter(f=>f.type.startsWith('image/'));
+const recList=t=>t==='pay'?pay.receipts:D.receipts;
+function pickReceipts(fs,t){const L=recList(t),l=[...fs],ok=l.filter(f=>f.type.startsWith('image/'));
  if(ok.length<l.length)toast('Only image files are added');
- const room=MAXR-D.receipts.length;if(ok.length>room)toast(`Up to ${MAXR} attachments`);
- ok.slice(0,Math.max(room,0)).forEach(f=>D.receipts.push({file:f,prev:URL.createObjectURL(f)}));draw()}
-function dropReceipt(i){const r=D.receipts[i];if(r.prev)URL.revokeObjectURL(r.prev);D.receipts.splice(i,1);draw()}
+ const room=MAXR-L.length;if(ok.length>room)toast(`Up to ${MAXR} attachments`);
+ ok.slice(0,Math.max(room,0)).forEach(f=>L.push({file:f,prev:URL.createObjectURL(f)}));draw()}
+function dropReceipt(i,t){const L=recList(t),r=L[i];if(r.prev)URL.revokeObjectURL(r.prev);L.splice(i,1);draw()}
 async function uploadReceipt(blob){
  if(!CLOUDINARY.cloud||!CLOUDINARY.preset)throw new Error('Cloudinary is not configured');
  const fd=new FormData();fd.append('file',blob);fd.append('upload_preset',CLOUDINARY.preset);
@@ -323,7 +338,10 @@ const closeReceipt=()=>{const b=$('#lb');b.hidden=true;b.querySelector('img').re
 addEventListener('keydown',e=>{if($('#lb').hidden)return;if(e.key==='Escape')closeReceipt();else if(lbList.length>1&&e.key==='ArrowLeft')stepReceipt(-1);else if(lbList.length>1&&e.key==='ArrowRight')stepReceipt(1)});
 const rcOf=m=>m.receipts||(m.receipt?[m.receipt]:[]);
 const openMealReceipt=(id,i)=>viewReceipt(rcOf(meals.find(m=>m.id===id)),i);
-const openDraftReceipt=i=>viewReceipt(D.receipts.map(r=>r.prev||r.url),i);
+const openDraftReceipt=(i,t)=>viewReceipt(recList(t).map(r=>r.prev||r.url),i);
+function receiptPicker(L,t){
+ return (L.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${L.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||r.url.replace('/upload/','/upload/w_200,c_limit/'))}" alt="Attachment ${i+1}" onclick="openDraftReceipt(${i},'${t}')" style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" onclick="dropReceipt(${i},'${t}')">✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>')+
+ (L.length<MAXR?`<label class="sm" style="display:block;margin:0 0 8px;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">＋ Add photos<input type="file" accept="image/*" multiple style="display:none" onchange="pickReceipts(this.files,'${t}')"></label>`:`<div class="mu">Maximum of ${MAXR} attachments.</div>`)}
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" onclick="${fn}(${l?`'${l}',${i},`:''}'${id}')">${esc(nm(id))}</button>`).join('')}
@@ -346,8 +364,7 @@ function vNew(){
  <div class="lb">Who's splitting?</div><div class="chips">${chips(ids,D.attendees,'togA')}</div></div>
  <div class="card"><h2>${C.items}</h2><div class="mu">One person = only theirs. Pick several (or Everyone) for a shared cost; it splits equally among them.</div>${D.items.map(it).join('')}<div class="sub"><button onclick="D.items.push({name:'',price:'',all:false,people:[]});draw()">＋ Add item</button></div></div>
  <div class="card"><h2>Fees, tax, discounts</h2><div class="mu">Each one only applies to the people you select. Percentages are taken from those people’s own orders.</div>${D.extras.map(ex).join('')}<div class="sub row"><button class="g1" onclick="addX(1)">＋ Charge</button><button class="g1" onclick="addX(-1)">＋ Discount</button></div></div>
- <div class="card"><h2>Receipts</h2>${D.receipts.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${D.receipts.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||r.url.replace('/upload/','/upload/w_200,c_limit/'))}" alt="Receipt ${i+1}" onclick="openDraftReceipt(${i})" style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" onclick="dropReceipt(${i})">✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>'}
- ${D.receipts.length<MAXR?`<label class="sm" style="display:block;margin:0;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">＋ Add receipt photos<input type="file" accept="image/*" multiple style="display:none" onchange="pickReceipts(this.files)"></label>`:`<div class="mu">Maximum of ${MAXR} attachments.</div>`}</div>
+ <div class="card"><h2>Receipts</h2>${receiptPicker(D.receipts,'D')}</div>
  <div class="card"><h2>Breakdown</h2><div class="mu">Items + extras = total</div><div id="pv"></div><label style="margin-top:10px">Receipt total (optional, for checking)<input inputmode="decimal" value="${esc(D.total)}" oninput="D.total=this.value;pv()"></label><button class="pri" onclick="saveMeal()">Save expense</button></div>`;
 }
 function addX(s){D.extras.push({label:s>0?'Service charge':'Discount',type:'pct',value:s>0?'10':'',sign:s,mode:'prop',all:true,people:[]});draw()}

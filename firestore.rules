@@ -78,11 +78,11 @@ service cloud.firestore {
         allow delete: if isAdmin() || (inTeam(t) && resource.data.get('uid', null) == request.auth.uid);
       }
 
-      // Contributors can only log/delete payments made to themselves.
+      // Contributors can only log/delete payments involving themselves (their own balance).
       match /payments/{id} {
         allow read: if inTeam(t);
         allow create: if inTeam(t)
-          && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal'])
+          && request.resource.data.keys().hasOnly(['from', 'to', 'amount', 'note', 'date', 'created', 'meal', 'receipts'])
           && str(request.resource.data.from, 100)
           && str(request.resource.data.to, 100)
           && request.resource.data.from != request.resource.data.to
@@ -91,9 +91,16 @@ service cloud.firestore {
           && request.resource.data.amount < 10000000
           && str(request.resource.data.get('note', ''), 200)
           && str(request.resource.data.get('meal', ''), 100)
-          && (isAdmin() || request.resource.data.to == memberIn(t));
+          && request.resource.data.get('receipts', []) is list
+          && request.resource.data.get('receipts', []).size() <= 10
+          && (isAdmin()
+              || (memberIn(t) != ''
+                  && (request.resource.data.from == memberIn(t)
+                      || request.resource.data.to == memberIn(t))));
         allow update: if false;
-        allow delete: if isAdmin() || (inTeam(t) && resource.data.to == memberIn(t));
+        allow delete: if isAdmin()
+          || (inTeam(t) && memberIn(t) != ''
+              && (resource.data.from == memberIn(t) || resource.data.to == memberIn(t)));
       }
     }
 
