@@ -77,7 +77,7 @@ const firebaseConfig={
 };
 /* ============================================================================ */
 // Cloudinary receipt storage: cloud name and an UNSIGNED upload preset name
-const CLOUDINARY={cloud:'czzsvajf',preset:tab-tracker'};
+const CLOUDINARY={cloud:'czzsvajf',preset:'tab-tracker'};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const peso=n=>(n<0?'-':'')+'₱'+(Math.abs(n)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
