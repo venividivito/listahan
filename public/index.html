@@ -1,18 +1,31 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
-<title>Tab Tracker</title>
+<title>Listahan</title>
 <style>
+@font-face{font-family:"Google Sans";src:url(fonts/GoogleSans-Variable.woff2) format("woff2");font-weight:400 700;font-style:normal;font-display:swap}
 :root{--bg:#f5f7f2;--card:#fff;--tx:#1b2118;--mu:#66705f;--ac:#4d7c0f;--on:#fff;--ln:#dfe5d8;--ok:#0f766e;--bad:#b91c1c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 /* Material 3 roles derived from the active palette */
 :root{--outl:color-mix(in srgb,var(--mu) 70%,var(--card));--tonal:color-mix(in srgb,var(--ac) 14%,var(--card));--hi:color-mix(in srgb,var(--tx) 8%,var(--card));--sh1:0 1px 2px rgba(0,0,0,.3),0 1px 3px 1px rgba(0,0,0,.15);--sh3:0 1px 3px rgba(0,0,0,.3),0 4px 8px 3px rgba(0,0,0,.15)}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--tx);font:400 16px/24px Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.5px}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 16px/24px "Google Sans","Google Sans Text",system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.5px}
 .w{max-width:640px;margin:0 auto;padding:14px 16px 80px}
 h1{font-size:24px;line-height:32px;font-weight:400;letter-spacing:0;margin:4px 0 12px}h2{font-size:16px;line-height:24px;font-weight:500;letter-spacing:.15px;margin:0 0 12px}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 12px}.hdr h1{margin:0;flex:none}
+/* "listahan" in Jasendira lettering, drawn as SVG so it can be written out */
+.logo{position:relative;width:104px;height:48px;line-height:0;visibility:hidden}
+.logo svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.logo .df{width:0;height:0;overflow:hidden}
+.logo .mk{fill:none;stroke:#fff;stroke-width:700;stroke-linejoin:round;stroke-dashoffset:0}
+.logo .fl{fill:var(--tx)}
+.logo.still,.logo.play{visibility:visible}
+#me{display:flex;align-items:center;gap:10px;min-width:0}
+#me .gr{font-size:13px;line-height:18px;letter-spacing:.2px;text-align:right;min-width:0;overflow-wrap:anywhere}
+.av{position:relative;flex:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;margin:0;border-radius:50%;border:1px solid var(--ln);background:var(--tonal);color:var(--tx);font-size:18px;font-weight:500;letter-spacing:0;cursor:pointer}
+.av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.av input{display:none}
+.av i{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;background:var(--ac);color:var(--on);font:normal 10px/18px system-ui,sans-serif;text-align:center;border:2px solid var(--bg)}
 nav{display:flex;margin-bottom:16px;overflow-x:auto;border-bottom:1px solid var(--ln)}
 nav button{flex:1;white-space:nowrap}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:16px;margin-bottom:12px}
@@ -33,10 +46,14 @@ nav button{transition:color .2s}
 #app.in{animation:vin .22s cubic-bezier(.2,0,0,1)}
 @keyframes vin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 input,select{width:100%;min-height:48px;border-color:var(--outl);border-radius:4px;background:transparent;font-size:16px;letter-spacing:.5px;padding:8px 16px}
+select{-webkit-appearance:none;appearance:none;padding-right:44px;background-color:transparent;background-repeat:no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--mu) 50%),linear-gradient(135deg,var(--mu) 50%,transparent 50%);background-position:calc(100% - 23px) calc(50% + 1px),calc(100% - 17px) calc(50% + 1px);background-size:6px 6px,6px 6px}
 input:focus,select:focus{outline:0;border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
-input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;height:48px;line-height:1.2;text-align:left}
-input[type=date]::-webkit-date-and-time-value{text-align:left;min-height:1.2em;margin:0}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;height:48px;padding-top:0;padding-bottom:0;line-height:46px;text-align:left;text-align-last:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left;height:46px;min-height:0;line-height:46px;margin:0;padding:0}
+input[type=date]::-webkit-datetime-edit{padding:0;line-height:46px}
+input[type=date]::-webkit-datetime-edit-fields-wrapper{padding:0}
 input[type=date]::-webkit-calendar-picker-indicator{opacity:.7}
+.row:has(input[type=date]){align-items:flex-start}
 label.g1,label.g2{min-width:0}
 label{display:block;font-size:12px;line-height:16px;letter-spacing:.4px;color:var(--mu);margin-bottom:8px}
 label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
@@ -89,7 +106,7 @@ function applyTheme(){const d=mode==='dark'||(mode==='system'&&darkMQ.matches),r
 darkMQ.addEventListener('change',()=>{if(mode==='system')applyTheme()});
 applyTheme();
 </script></head>
-<body><div class="w"><h1>🍽️ Tab Tracker</h1><div id="tm"></div><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
+<body><div class="w"><div class="hdr"><h1 id="logo" class="logo" role="img" aria-label="Listahan"><svg class="df" viewBox="-110 -1215 3500 1625" aria-hidden="true"><defs><path id="lp0" d="M112 -50Q146 -71 221.5 -144Q297 -217 356.5 -285Q416 -353 409 -360Q409 -361 408 -361Q399 -369 374 -349Q355 -333 297 -273Q265 -240 250 -226Q142 -120 78.5 -85Q15 -50 -5 -70Q-10 -75 -2 -119.5Q6 -164 23 -214Q48 -292 99 -359Q144 -419 289 -565Q488 -768 595 -910.5Q702 -1053 701 -1119Q700 -1150 681 -1164Q662 -1178 623 -1163Q584 -1148 526 -1092Q400 -974 256.5 -776Q113 -578 21 -400Q-51 -261 -63.5 -174.5Q-76 -88 -49 -56Q-18 -20 18 -17Q54 -14 112 -50ZM249 -582 175 -513Q175 -513 233.5 -603.5Q292 -694 357 -778Q482 -938 555 -1016Q628 -1094 640 -1094Q660 -1094 618 -1027.5Q576 -961 456 -809Q410 -750 348 -683Q286 -616 249 -582Z"/><path id="lp1" d="M413 -95Q451 -117 551 -209Q651 -301 680 -340Q687 -353 684 -356Q683 -356 683 -356Q680 -359 675 -357.5Q670 -356 655 -346Q630 -330 531 -239Q372 -93 336 -119Q324 -127 356 -194Q388 -261 438 -335Q459 -366 469.5 -395.5Q480 -425 477.5 -444.5Q475 -464 460 -464Q440 -464 388.5 -393Q337 -322 304 -248Q276 -184 277 -145Q278 -106 309 -84Q332 -69 354 -71.5Q376 -74 413 -95ZM565 -554Q603 -606 580 -626Q566 -641 546.5 -633Q527 -625 512.5 -601.5Q498 -578 498 -550Q498 -460 565 -554Z"/><path id="lp2" d="M591 -103Q519 -39 480.5 22Q442 83 444.5 126Q447 169 494 180Q529 189 576.5 162.5Q624 136 668 89Q712 42 737 -9.5Q762 -61 755 -100Q746 -129 766 -152.5Q786 -176 859 -227Q894 -251 971 -290Q1024 -317 1037 -326Q1085 -364 1067 -366.5Q1049 -369 981 -339Q913 -309 828 -259Q777 -228 749.5 -217Q722 -206 712 -221Q677 -268 697 -323Q717 -378 765.5 -421Q814 -464 853 -475Q880 -484 886 -511Q892 -538 870 -559Q857 -570 816.5 -548Q776 -526 733.5 -489Q691 -452 674 -426Q638 -369 639.5 -326.5Q641 -284 658 -244Q660 -239 661 -236Q677 -202 664.5 -178Q652 -154 591 -103ZM503 111Q489 97 516.5 59.5Q544 22 597 -34Q649 -90 675.5 -100.5Q702 -111 690 -79Q678 -47 628 11Q581 64 545.5 91.5Q510 119 503 111Z"/><path id="lp3" d="M1162 -590Q1031 -374 935.5 -185.5Q840 3 794.5 133.5Q749 264 762 318Q778 374 799.5 365Q821 356 824 291Q826 224 905 47.5Q984 -129 1097.5 -333Q1211 -537 1311.5 -682.5Q1412 -828 1454 -839Q1466 -843 1539 -847Q1644 -853 1705 -860Q1834 -874 1885 -873Q1936 -872 1966 -857Q2008 -835 2026 -844Q2044 -853 2017 -882Q2004 -894 1936.5 -898.5Q1869 -903 1727 -901Q1570 -899 1517 -903Q1464 -907 1475 -921Q1486 -941 1527 -1000Q1545 -1026 1551 -1052.5Q1557 -1079 1550 -1096Q1543 -1113 1524 -1113Q1509 -1113 1425 -1000L1345 -886Q1345 -886 1275 -877.5Q1205 -869 1077 -846Q949 -823 768 -782Q680 -761 662.5 -745Q645 -729 681 -701Q691 -692 705 -693.5Q719 -695 744 -702Q759 -707 767 -709Q1012 -768 1150 -795Q1288 -822 1292 -818Q1278 -784 1162 -590Z"/><path id="lp4" d="M1477 -85Q1510 -103 1579.5 -167Q1649 -231 1704.5 -292.5Q1760 -354 1754 -360Q1736 -377 1592 -224Q1461 -84 1390 -100Q1369 -104 1379.5 -146Q1390 -188 1435 -276Q1506 -419 1506 -439Q1503 -462 1477.5 -463Q1452 -464 1435 -441Q1421 -419 1404 -451Q1387 -482 1353.5 -481.5Q1320 -481 1278 -452Q1236 -423 1193.5 -370Q1151 -317 1116 -247Q1088 -192 1083.5 -163Q1079 -134 1093 -117Q1118 -84 1147.5 -94Q1177 -104 1245 -170L1328 -251Q1328 -251 1320 -225Q1312 -199 1309.5 -168.5Q1307 -138 1319 -110Q1331 -82 1363 -71Q1397 -58 1419.5 -63Q1442 -68 1477 -85ZM1313 -278Q1237 -197 1210 -185Q1183 -173 1178 -189Q1172 -208 1213 -262.5Q1254 -317 1306 -364.5Q1358 -412 1377 -412Q1411 -410 1388.5 -372.5Q1366 -335 1313 -278Z"/><path id="lp5" d="M2203 -255Q2303 -348 2288 -357Q2280 -360 2267.5 -351Q2255 -342 2204 -298Q2071 -184 2016 -145.5Q1961 -107 1952 -127Q1943 -147 1977 -239Q2023 -358 2023 -390Q2023 -425 2001.5 -437.5Q1980 -450 1941 -427Q1910 -409 1871 -375.5Q1832 -342 1772 -286Q1755 -271 1746 -263Q1714 -234 1729.5 -263.5Q1745 -293 1799 -381Q1816 -409 1825 -424Q1920 -583 2152 -907Q2193 -966 2216.5 -1011.5Q2240 -1057 2234 -1070Q2227 -1088 2219.5 -1088.5Q2212 -1089 2191 -1072Q2156 -1043 2008.5 -822Q1861 -601 1727 -381Q1593 -161 1593 -135Q1593 -85 1632 -107Q1671 -129 1770 -225Q1892 -344 1912 -359Q1947 -384 1946 -367Q1945 -350 1916 -282Q1884 -206 1891.5 -149Q1899 -92 1942 -75Q1967 -66 1992.5 -76.5Q2018 -87 2058.5 -122.5Q2099 -158 2203 -255Z"/><path id="lp6" d="M2542 -85Q2575 -103 2644.5 -167Q2714 -231 2769.5 -292.5Q2825 -354 2819 -360Q2801 -377 2657 -224Q2526 -84 2455 -100Q2434 -104 2444.5 -146Q2455 -188 2500 -276Q2571 -419 2571 -439Q2568 -462 2542.5 -463Q2517 -464 2500 -441Q2486 -419 2469 -451Q2452 -482 2418.5 -481.5Q2385 -481 2343 -452Q2301 -423 2258.5 -370Q2216 -317 2181 -247Q2153 -192 2148.5 -163Q2144 -134 2158 -117Q2183 -84 2212.5 -94Q2242 -104 2310 -170L2393 -251Q2393 -251 2385 -225Q2377 -199 2374.5 -168.5Q2372 -138 2384 -110Q2396 -82 2428 -71Q2462 -58 2484.5 -63Q2507 -68 2542 -85ZM2378 -278Q2302 -197 2275 -185Q2248 -173 2243 -189Q2237 -208 2278 -262.5Q2319 -317 2371 -364.5Q2423 -412 2442 -412Q2476 -410 2453.5 -372.5Q2431 -335 2378 -278Z"/><path id="lp7" d="M3077 -99Q3111 -115 3179.5 -175.5Q3248 -236 3301.5 -293.5Q3355 -351 3347 -359Q3347 -359 3347 -359Q3340 -369 3319 -353Q3302 -340 3256 -297Q3225 -267 3205 -249Q3116 -166 3070.5 -145.5Q3025 -125 3020 -150Q3018 -163 3029.5 -195.5Q3041 -228 3066 -289Q3115 -416 3115 -446Q3115 -486 3069 -466.5Q3023 -447 2949 -384Q2931 -369 2893 -335Q2863 -308 2848 -295.5Q2833 -283 2830 -285Q2824 -288 2848.5 -326.5Q2873 -365 2896 -396Q2932 -441 2935.5 -472.5Q2939 -504 2909 -502Q2882 -500 2823 -422Q2764 -344 2712.5 -253.5Q2661 -163 2661 -139Q2661 -103 2682 -104.5Q2703 -106 2746.5 -142.5Q2790 -179 2867 -256Q2980 -368 3005 -375Q3030 -382 2989 -300Q2950 -224 2946 -171.5Q2942 -119 2974 -98Q3000 -80 3021.5 -81Q3043 -82 3077 -99Z"/></defs></svg><svg class="fl" viewBox="-110 -1215 3500 1625" aria-hidden="true"><defs><mask id="lm" maskUnits="userSpaceOnUse" x="-110" y="-1215" width="3500" height="1625"><use class="mk" href="#lp0"/><use class="mk" href="#lp1"/><use class="mk" href="#lp2"/><use class="mk" href="#lp3"/><use class="mk" href="#lp4"/><use class="mk" href="#lp5"/><use class="mk" href="#lp6"/><use class="mk" href="#lp7"/></mask></defs><g mask="url(#lm)"><use href="#lp0"/><use href="#lp1"/><use href="#lp2"/><use href="#lp3"/><use href="#lp4"/><use href="#lp5"/><use href="#lp6"/><use href="#lp7"/></g></svg></h1><div id="me"></div></div><nav id="nav"></nav><div id="app"><div class="card mu">Connecting…</div></div></div><div id="toast"></div>
 <div id="lb" hidden onclick="closeReceipt()"><button class="c" onclick="closeReceipt()" aria-label="Close">✕</button><span></span><button class="p" onclick="event.stopPropagation();stepReceipt(-1)" aria-label="Previous">‹</button><img alt="Receipt" onclick="event.stopPropagation()"><button class="n" onclick="event.stopPropagation();stepReceipt(1)" aria-label="Next">›</button></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -175,8 +192,43 @@ function ledger(){
 const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—':r.every(x=>x.paid>=x.o)?'Settled':r.some(x=>x.paid>0)?'Partial':'Unpaid'};
 
 /* ---------- navigation ---------- */
+const greet=()=>{const h=new Date().getHours();return h<12?'Good morning':h<18?'Good afternoon':'Good evening'};
+let meHtml='',lgIn=false;
+/* A wide pen follows the letter outlines in order, so each letter fills in as if written.
+   Driven from JS because browsers don't repaint CSS animations inside an SVG mask reliably. */
+let lgRaf=0,lgLens=[],lgTot=0;
+function drawLogo(t){
+ const ms=document.querySelectorAll('.mk');if(!ms.length)return;
+ const g=Math.min(t/.84,1),u=(1-Math.cos(Math.PI*g))/2*.6+g*.4,w=300+400*Math.max(0,(t-.84)/.16);
+ let from=0;ms.forEach((m,i)=>{const L=lgLens[i],p=Math.min(Math.max((u*lgTot-from)/L,0),1);from+=L;
+  m.style.strokeDasharray=`${L}px ${L*2}px`;m.style.strokeDashoffset=(L*(1-p))+'px';m.style.strokeWidth=w+'px'})}
+function setLogo(mode){const l=$('#logo');if(!l)return;cancelAnimationFrame(lgRaf);
+ const ms=document.querySelectorAll('.mk');ms.forEach(m=>m.style.cssText='');
+ lgLens=[...ms].map((_,i)=>Math.ceil($('#lp'+i).getTotalLength())+2);lgTot=lgLens.reduce((a,b)=>a+b,0);
+ if(mode!=='play'||matchMedia('(prefers-reduced-motion: reduce)').matches){l.className='logo still';return}
+ drawLogo(0);l.className='logo play';
+ const t0=performance.now(),D=2800;
+ const step=now=>{const t=Math.min((now-t0)/D,1);drawLogo(t);if(t<1)lgRaf=requestAnimationFrame(step);else{ms.forEach(m=>m.style.cssText='');l.className='logo still'}};
+ lgRaf=requestAnimationFrame(step)}
+const playLogo=()=>setLogo('play'),logoStill=()=>setLogo('still');
+function renderMe(){
+ const el=$('#me');if(!el)return;
+ const name=(me&&members.some(m=>m.id===me)?nm(me):(user?.displayName||user?.email||'').split(/[\s@]/)[0])||'there';
+ const h=user?`<span class="gr">${greet()}, ${esc(name)}!</span><label class="av" title="Change photo">${user.photoURL?`<img src="${esc(user.photoURL)}" alt="Your photo" referrerpolicy="no-referrer">`:esc(name.charAt(0).toUpperCase())}<i>✎</i><input type="file" accept="image/*" onchange="setAvatar(this)"></label>`:'';
+ if(h!==meHtml){meHtml=h;el.innerHTML=h}}
+function avatarBlob(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
+ i.onload=()=>{URL.revokeObjectURL(u);const s=Math.min(i.width,i.height),c=document.createElement('canvas');c.width=c.height=256;
+  c.getContext('2d').drawImage(i,(i.width-s)/2,(i.height-s)/2,s,s,0,0,256,256);
+  c.toBlob(b=>b?ok(b):no(new Error('Could not process image')),'image/jpeg',.85)};
+ i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('Not a valid image'))};i.src=u})}
+async function setAvatar(inp){const f=inp.files[0];inp.value='';if(!f||!user)return;
+ if(!f.type.startsWith('image/'))return toast('Only image files are added');
+ try{toast('Updating photo…');const url=await uploadReceipt(await avatarBlob(f));await user.updateProfile({photoURL:url});meHtml='';renderMe();toast('Photo updated')}
+ catch(e){toast('Could not update photo: '+(e.message||e.code||''))}}
+
+/* ---------- navigation ---------- */
 function nav(){
- $('#tm').innerHTML=teams.length>1?`<select style="margin-bottom:8px" onchange="openTeam(this.value)">${teams.map(t=>`<option value="${esc(t.id)}" ${sel(t.id,cur)}>${esc(t.name)}</option>`).join('')}</select>`:teams.length?`<div class="mu" style="margin:-6px 0 8px">${esc(tname(cur))}</div>`:'';
+ renderMe();
  const ks=['bal','meals','people'],at=tab==='new'?'meals':tab,nb=$('#nav').children;
  if(nb.length===ks.length)ks.forEach((k,i)=>nb[i].classList.toggle('on',k===at));
  else $('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${at===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
@@ -215,7 +267,7 @@ function vBal(){
   :`<span style="text-align:right">${!x.ow&&!x.ot?'<span class="mu">settled</span>':[x.ow?`<span class="bad">owes ${peso(x.ow)}</span>`:'',x.ot?`<span class="ok">is owed ${peso(x.ot)}</span>`:''].filter(Boolean).join('<br>')}</span>`;
  h+=`<div class="card"><div class="hd" style="cursor:default;margin-bottom:6px"><h2 style="margin:0">Balances</h2><label class="sw"><span>Auto-net</span><input type="checkbox" ${autoNet?'checked':''} onchange="setNet(this.checked)"><i></i></label></div><div class="mu">${autoNet?'Mutual debts are offset against each other.':'Mutual debts are shown separately, not offset.'} Tap a name to see their breakdown and record payments.</div>`+list.map(x=>`<div class="pr hd" onclick="openP('${x.id}')"><span><b>${esc(nm(x.id))}</b></span>${amt(x)}<span class="mu">›</span></div>`).join('')+'</div>';
  const ps=[...pays].sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,10);
- if(ps.length)h+=`<div class="card"><h2>Recent payments</h2>`+ps.map(payRow).join('')+'</div>';
+ if(ps.length)h+=`<div class="hd" style="margin:16px 2px 8px" onclick="tog('rp')"><b>${expd.rp?'▾':'▸'} Recent payments (${ps.length})</b><span class="mu">Latest 10</span></div>`+(expd.rp?`<div class="card">`+ps.map(payRow).join('')+'</div>':'');
  return h;
 }
 const payRow=p=>`<div class="pr"><span>${esc(nm(p.from))} → ${esc(nm(p.to))}<br><span class="mu">${esc(p.date)} ${esc(p.note||'')}</span>${(p.receipts||[]).length?`<br>${p.receipts.map((u,i)=>`<button class="sm" onclick="openPayReceipt('${p.id}',${i})">📎 Attachment${p.receipts.length>1?' '+(i+1):''}</button>`).join(' ')}`:''}</span><b>${peso(Math.round(p.amount*100))}</b>${canPay(p.from,p.to)?`<button class="sm" onclick="delPay('${p.id}')">${dlabel('p'+p.id,'✕')}</button>`:''}</div>`;
@@ -353,7 +405,7 @@ function vNew(){
  const C=CAT[catOf(D)],customs=[...new Set(meals.filter(m=>catOf(m)==='custom'&&m.catName).map(m=>m.catName))];
  const it=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="${C.item}" value="${esc(x.name)}" oninput="D.items[${i}].name=this.value"><input class="g1" inputmode="decimal" placeholder="Price" value="${esc(x.price)}" oninput="D.items[${i}].price=this.value;pv()"><button class="x" onclick="D.items.splice(${i},1);draw()">✕</button></div>
   <div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('items',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','items',i)}</div></div>`;
- const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Label" value="${esc(x.label)}" oninput="D.extras[${i}].label=this.value;pv()"><input class="g1" inputmode="decimal" placeholder="Value" value="${esc(x.value)}" oninput="D.extras[${i}].value=this.value;pv()"><select style="width:64px" onchange="D.extras[${i}].type=this.value;pv()"><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" onclick="D.extras.splice(${i},1);draw()">✕</button></div>
+ const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" placeholder="Label" value="${esc(x.label)}" oninput="D.extras[${i}].label=this.value;pv()"><input class="g1" inputmode="decimal" placeholder="Value" value="${esc(x.value)}" oninput="D.extras[${i}].value=this.value;pv()"><select style="width:84px;padding-left:12px" onchange="D.extras[${i}].type=this.value;pv()"><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" onclick="D.extras.splice(${i},1);draw()">✕</button></div>
   <div class="row"><select onchange="D.extras[${i}].sign=+this.value;pv()"><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select onchange="D.extras[${i}].mode=this.value;pv()"><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
   <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" onclick="allL('extras',${i})">Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
  return `<button class="sm" style="margin-bottom:10px" onclick="if(D.id)D=null;go('meals')">${D.id?'← Cancel edit':'← Expenses'}</button><div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
@@ -401,6 +453,7 @@ function vPeople(){
  let h=`<div class="card"><h2>You</h2><div class="pr"><span>${esc(user.email)}</span><span class="mu">${me?esc(nm(me))+' · ':''}${A?'Admin (all teams)':'Contributor'}</span></div><button class="sm" style="margin-top:8px" onclick="firebase.auth().signOut()">Sign out</button></div>
  <div class="card"><h2>Appearance</h2><div class="lb">Mode</div><div class="chips">${[['system','System'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" class="chip ${mode===k?'on':''}" onclick="setTheme(palette,'${k}')">${l}</button>`).join('')}</div>
  <div class="lb">Palette</div><div class="chips">${Object.entries(PAL).map(([k,p])=>`<button type="button" class="chip ${palette===k?'on':''}" onclick="setTheme('${k}',mode)"><span class="sw2" style="background:${p[(mode==='dark'||(mode==='system'&&darkMQ.matches))?'dark':'light'][4]}"></span>${p.name}</button>`).join('')}</div></div>`;
+ if(!A&&teams.length>1)h+=`<div class="card"><h2>Team</h2><select onchange="openTeam(this.value)">${teams.map(t=>`<option value="${esc(t.id)}" ${sel(t.id,cur)}>${esc(t.name)}</option>`).join('')}</select></div>`;
  if(A&&legacy&&!teams.some(t=>t.legacy))h+=`<div class="card"><h2>Move existing data into a team</h2><div class="mu">People, expenses and payments from before teams existed are hidden until moved. Existing access entries are linked to the new team too. The original data is left untouched.</div><div class="row sub"><input id="lg" placeholder="Team name"><button onclick="migrate()">Move</button></div></div>`;
  if(A)h+=`<div class="card"><h2>Teams</h2>${teams.map(t=>nameRow('t:'+t.id,t.name,`${t.id===cur?'<span class="mu">current</span>':`<button class="sm" onclick="openTeam('${esc(t.id)}')">Open</button>`}<button class="sm" onclick="editName('t:${esc(t.id)}')">Rename</button><button class="sm" onclick="delTeam('${esc(t.id)}')">Delete</button>`)).join('')||'<p class="mu">No teams yet.</p>'}
  <div class="row sub"><input id="tn" placeholder="New team name" onkeydown="if(event.key==='Enter')addTeam()"><button onclick="addTeam()">Create</button></div></div>`;
@@ -449,16 +502,17 @@ async function migrate(){const name=$('#lg').value.trim();if(!name)return toast(
 
 /* ---------- start ---------- */
 (async function(){
- const fail=()=>{$('#app').innerHTML='<div class="card">Couldn’t connect to Firebase. Check the firebaseConfig at the top of the script and your Firestore rules.</div>'};
+ const fail=()=>{logoStill();$('#app').innerHTML='<div class="card">Couldn’t connect to Firebase. Check the firebaseConfig at the top of the script and your Firestore rules.</div>'};
  const t=setTimeout(()=>{if(!db)fail()},10000);
  try{firebase.initializeApp(firebaseConfig);db=firebase.firestore()}catch(e){db=null}
  clearTimeout(t);if(!db||firebaseConfig.projectId==='PASTE_PROJECT_ID')return fail();
  let rsub=null,mode0=null;
- const gate=h=>{$('#tm').innerHTML='';$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
+ const gate=h=>{meHtml='';$('#me').innerHTML='';$('#nav').innerHTML='';$('#app').innerHTML=`<div class="card">${h}</div>`};
  const err=e=>toast('Sync problem: '+(e.code||''));
  const stop=()=>{[...gsubs,...tsubs].forEach(f=>f());gsubs=[];tsubs=[];mode0=null;teams=[]};
  firebase.auth().onAuthStateChanged(u=>{
   rsub?.();rsub=null;stop();user=u;role=null;me='';members=[];meals=[];pays=[];roles=[];legacy=false;seenM=false;tab='bal';bp=null;D=null;
+  if(u&&!lgIn)playLogo();else if(!u)logoStill();lgIn=!!u;
   if(!u)return gate('<h2>Sign in</h2><p class="mu">Use the Google account your admin gave access to.</p><button class="pri" onclick="firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message))">Sign in with Google</button>');
   $('#app').innerHTML='<div class="card mu">Loading…</div>';
   const noAccess=()=>{stop();gate(`<h2>No access yet</h2><p class="mu">${esc(u.email)} isn’t on a team. Ask an admin to grant access.</p><button onclick="firebase.auth().signOut()">Sign out</button>`)};
