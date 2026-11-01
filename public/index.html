@@ -1,56 +1,76 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
 <title>Tab Tracker</title>
 <style>
 :root{--bg:#f5f7f2;--card:#fff;--tx:#1b2118;--mu:#66705f;--ac:#4d7c0f;--on:#fff;--ln:#dfe5d8;--ok:#0f766e;--bad:#b91c1c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Material 3 roles derived from the active palette */
+:root{--outl:color-mix(in srgb,var(--mu) 70%,var(--card));--tonal:color-mix(in srgb,var(--ac) 14%,var(--card));--hi:color-mix(in srgb,var(--tx) 8%,var(--card));--sh1:0 1px 2px rgba(0,0,0,.3),0 1px 3px 1px rgba(0,0,0,.15);--sh3:0 1px 3px rgba(0,0,0,.3),0 4px 8px 3px rgba(0,0,0,.15)}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
-.w{max-width:640px;margin:0 auto;padding:14px 12px 80px}
-h1{font-size:22px;margin:4px 0 10px}h2{font-size:16px;margin:0 0 10px}
-nav{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 16px/24px Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.5px}
+.w{max-width:640px;margin:0 auto;padding:14px 16px 80px}
+h1{font-size:24px;line-height:32px;font-weight:400;letter-spacing:0;margin:4px 0 12px}h2{font-size:16px;line-height:24px;font-weight:500;letter-spacing:.15px;margin:0 0 12px}
+nav{display:flex;margin-bottom:16px;overflow-x:auto;border-bottom:1px solid var(--ln)}
 nav button{flex:1;white-space:nowrap}
-.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:16px;margin-bottom:12px}
 .sub{border-top:1px dashed var(--ln);padding-top:10px;margin-top:10px}
-button,input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:9px 10px;min-height:42px}
-button{cursor:pointer}
-button.pri{background:var(--ac);border-color:var(--ac);color:var(--on);font-weight:600;width:100%;margin-top:10px}
-nav button.on{background:var(--ac);border-color:var(--ac);color:var(--on)}
-input,select{width:100%}
-label{display:block;font-size:13px;color:var(--mu);margin-bottom:8px}
-label input,label select{margin-top:3px;color:var(--tx);font-size:16px}
-.row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+button,input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;min-height:40px}
+button{cursor:pointer;font-size:14px;line-height:20px;font-weight:500;letter-spacing:.1px;background-color:var(--tonal);border-color:transparent;color:var(--tx);transition:background-color .15s,box-shadow .15s}
+button:hover{background-image:linear-gradient(color-mix(in srgb,currentColor 8%,transparent),color-mix(in srgb,currentColor 8%,transparent))}
+button:active{background-image:linear-gradient(color-mix(in srgb,currentColor 10%,transparent),color-mix(in srgb,currentColor 10%,transparent))}
+button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+button:disabled{opacity:.38;cursor:default;background-image:none}
+button.pri{background-color:var(--ac);color:var(--on);width:100%;margin-top:12px}
+nav button{background:none;border:0;border-radius:0;position:relative;min-height:48px;color:var(--mu)}
+nav button.on{background-color:transparent;color:var(--ac)}
+nav button.on::after{transform:scaleX(1)}
+nav button::after{content:'';position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--ac);transform:scaleX(0);transition:transform .2s cubic-bezier(.2,0,0,1)}
+nav button{transition:color .2s}
+#app.out{opacity:0;transform:translateY(8px);transition:opacity .12s ease-in,transform .12s ease-in}
+#app.in{animation:vin .22s cubic-bezier(.2,0,0,1)}
+@keyframes vin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+input,select{width:100%;min-height:48px;border-color:var(--outl);border-radius:4px;background:transparent;font-size:16px;letter-spacing:.5px;padding:8px 16px}
+input:focus,select:focus{outline:0;border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;height:48px;line-height:1.2;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left;min-height:1.2em;margin:0}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:.7}
+label.g1,label.g2{min-width:0}
+label{display:block;font-size:12px;line-height:16px;letter-spacing:.4px;color:var(--mu);margin-bottom:8px}
+label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .row>*{min-width:0}.g2{flex:2}.g1{flex:1}
-.x{flex:none;width:42px;padding:0}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-.chip{padding:6px 12px;min-height:34px;border-radius:99px}
-.chip.on{background:var(--ac);border-color:var(--ac);color:var(--on)}
+.x{flex:none;width:48px;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0}
+.chip{padding:6px 16px;min-height:32px;border-radius:8px;background-color:transparent;border:1px solid var(--ln);color:var(--mu)}
+.chip.on{background-color:var(--tonal);border-color:transparent;color:var(--tx)}
 .sw2{width:14px;height:14px;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:6px;border:1px solid var(--ln)}
-.lb,.mu{font-size:13px;color:var(--mu);margin:6px 0 2px}
-.pr{display:flex;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--ln);align-items:center}
+.lb,.mu{font-size:12px;line-height:16px;letter-spacing:.4px;color:var(--mu);margin:6px 0 2px}
+.pr{display:flex;gap:8px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ln);align-items:center}
 .pr span:first-child{flex:1}.tt{font-weight:700}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
-.badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--ln);color:var(--mu)}
+.badge{font-size:12px;line-height:16px;letter-spacing:.5px;font-weight:500;padding:2px 8px;border-radius:8px;border:1px solid var(--ln);color:var(--mu)}
 .badge.Settled{color:var(--ok);border-color:var(--ok)}.badge.Unpaid{color:var(--bad);border-color:var(--bad)}.badge.Partial{color:var(--ac);border-color:var(--ac)}
 .hd{display:flex;justify-content:space-between;gap:8px;cursor:pointer;align-items:center}
-.sm{min-height:34px;padding:4px 10px;font-size:14px}
-#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
+.sm{min-height:32px;padding:4px 12px;background-color:transparent;border-color:var(--outl);color:var(--ac)}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);font-size:14px;line-height:20px;letter-spacing:.25px;padding:14px 16px;min-height:48px;border-radius:4px;box-shadow:var(--sh3);opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
 #toast.s{opacity:1}
 #lb{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:calc(48px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))}
 #lb[hidden]{display:none}
 #lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;background:#fff}
-#lb button{position:absolute;width:42px;padding:0;border-radius:99px}
+#lb button{position:absolute;width:42px;padding:0;border-radius:99px;background-color:var(--bg);border:1px solid var(--ln)}
 #lb .c{top:calc(8px + env(safe-area-inset-top,0px));right:12px}
 #lb .p,#lb .n{top:50%;transform:translateY(-50%);min-height:48px;width:40px;opacity:.9}
 #lb .p{left:6px}#lb .n{right:6px}
 #lb span{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#fff;font-size:14px}
-.sw{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu);cursor:pointer;margin:0;user-select:none}
+.sw{display:flex;align-items:center;gap:12px;font-size:12px;line-height:16px;color:var(--mu);cursor:pointer;margin:0;user-select:none}
 .sw input{display:none}
-.sw i{position:relative;width:38px;height:22px;border-radius:99px;background:var(--ln);transition:background .2s;flex:none}
-.sw i::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
-.sw input:checked+i{background:var(--ac)}
-.sw input:checked+i::after{transform:translateX(16px)}
+.sw i{position:relative;width:52px;height:32px;border-radius:99px;border:2px solid var(--outl);background:var(--hi);transition:background .2s,border-color .2s;flex:none}
+.sw i::after{content:'';position:absolute;top:50%;left:6px;width:16px;height:16px;margin-top:-8px;border-radius:50%;background:var(--outl);transition:transform .2s,width .2s,height .2s,margin-top .2s,left .2s,background .2s}
+.sw input:checked+i{background:var(--ac);border-color:var(--ac)}
+.sw input:checked+i::after{left:2px;width:24px;height:24px;margin-top:-12px;background:var(--on);transform:translateX(20px)}
 </style>
 <script>
 // [bg,card,tx,mu,ac,on,ln,ok,bad]
@@ -107,7 +127,8 @@ function setTeams(list){teams=list.sort((a,b)=>(a.name||'').localeCompare(b.name
  const id=teams.some(t=>t.id===cur)?cur:(teams[0]?.id||'');
  if(id!==cur||(id&&!tsubs.length))openTeam(id);else{me=role?.teams?.[cur]||'';draw()}}
 let autoNet=localStorage.getItem('autoNet')!=='0';
-function setNet(v){autoNet=v;localStorage.setItem('autoNet',v?'1':'0');draw()}
+let netT;
+function setNet(v){autoNet=v;localStorage.setItem('autoNet',v?'1':'0');clearTimeout(netT);netT=setTimeout(draw,220)}
 function setTheme(p,m){palette=p;mode=m;localStorage.setItem('palette',p);localStorage.setItem('mode',m);applyTheme();draw()}
 const isAdmin=()=>role?.role==='admin';
 const canMeal=m=>isAdmin()||(!!m.uid&&m.uid===user?.uid);
@@ -156,9 +177,15 @@ const status=(m,L)=>{const r=Object.values(L.st[m.id]||{});return !r.length?'—
 /* ---------- navigation ---------- */
 function nav(){
  $('#tm').innerHTML=teams.length>1?`<select style="margin-bottom:8px" onchange="openTeam(this.value)">${teams.map(t=>`<option value="${esc(t.id)}" ${sel(t.id,cur)}>${esc(t.name)}</option>`).join('')}</select>`:teams.length?`<div class="mu" style="margin:-6px 0 8px">${esc(tname(cur))}</div>`:'';
- $('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${(tab==='new'?'meals':tab)===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+ const ks=['bal','meals','people'],at=tab==='new'?'meals':tab,nb=$('#nav').children;
+ if(nb.length===ks.length)ks.forEach((k,i)=>nb[i].classList.toggle('on',k===at));
+ else $('#nav').innerHTML=[['bal','Balances'],['meals','Expenses'],['people','People']].map(([k,l])=>`<button class="${at===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function tog(k){expd[k]=!expd[k];draw()}
-function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;tab=t;draw()}
+let goT;
+function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;const same=t===tab;tab=t;clearTimeout(goT);
+ const a=$('#app');if(same||matchMedia('(prefers-reduced-motion: reduce)').matches||!a.children.length){draw();return}
+ nav();a.classList.add('out');
+ goT=setTimeout(()=>{draw();a.classList.remove('out');a.classList.add('in');a.addEventListener('animationend',()=>a.classList.remove('in'),{once:true})},120)}
 function draw(){const f=document.activeElement?.id==='q',ev=$('#ed')?.value;nav();
  if(!cur&&tab!=='people'){$('#app').innerHTML='<div class="card">No team selected. Create one under <b>People</b>.</div>';return}
  $('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}
@@ -204,7 +231,7 @@ function vPerson(L,id){
  h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPayTo(r.c)?`<button class="sm" onclick="setPay('${r.d}','${r.c}',${r.n})">Receive</button>`:''}</div>`).join('');
  if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
  h+=`<p class="mu">${autoNet?'Totals are netted between each pair of people.':'Auto-net is off: debts in each direction are shown separately.'}</p></div>`;
- if(isAdmin()||me)h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
+ if(isAdmin()||[...ow,...ot].some(r=>canPayTo(r.c)))h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments made to you.</div>'}<div class="row"><select onchange="pay.from=this.value">${opts(ids.filter(i=>isAdmin()||i!==me),pay.from,'From')}</select><select onchange="pay.to=this.value">${opts(isAdmin()?ids:[me],pay.to,isAdmin()?'To':'')}</select></div>
  <div class="row"><input inputmode="decimal" placeholder="Amount ₱" value="${esc(pay.amount)}" oninput="pay.amount=this.value"><input placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" oninput="pay.note=this.value"></div>
  <button class="pri" onclick="savePay()">Save payment</button></div>`;
  const mine=[],theirs=[];
