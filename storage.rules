@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+    function rolePath() {
+      return /databases/(default)/documents/roles/$(request.auth.token.email.lower());
+    }
+    function role() {
+      return firestore.get(rolePath()).data;
+    }
+    function inTeam(t) {
+      return signedIn() && firestore.exists(rolePath())
+        && (role().role == 'admin' || t in role().get('teams', {}));
+    }
+
+    // Receipt images, one folder per team.
+    match /receipts/{t}/{file} {
+      allow read, delete: if inTeam(t);
+      allow create, update: if inTeam(t)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

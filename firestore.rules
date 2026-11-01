@@ -99,7 +99,8 @@ service cloud.firestore {
 
     function validExpense(d) {
       return d.keys().hasOnly(['category', 'catName', 'date', 'place', 'payer', 'attendees',
-                               'items', 'extras', 'total', 'uid', 'created'])
+                               'items', 'extras', 'total', 'uid', 'created', 'receipt'])
+        && str(d.get('receipt', ''), 300)
         && d.get('category', 'meal') in ['meal', 'transport', 'custom']
         && str(d.get('catName', ''), 60)
         && str(d.date, 10)
