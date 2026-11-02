@@ -285,7 +285,7 @@ function vPerson(L,id){
  h+=`<p class="mu">${autoNet?'Totals are netted between each pair of people.':'Auto-net is off: debts in each direction are shown separately.'}</p></div>`;
  // QR codes of everyone this person owes, so they can pay each one directly
  const qrc=ow.filter(r=>qrOf(r.c).length);
- if(qrc.length)h+=`<div class="card"><h2>Pay via bank QR</h2><div class="mu">Tap a code to enlarge it.</div>${qrc.map(r=>`<div class="sub"><div class="pr qrh"><span><b>${esc(nm(r.c))}</b></span><b class="bad">${peso(r.n)}</b></div>${qrThumbs(r.c,qrOf(r.c))}</div>`).join('')}</div>`;
+ if(qrc.length)h+=`<div class="card"><div class="hd" ${at('act','tog','qrHide')}><h2 style="margin:0">${expd.qrHide?'▸':'▾'} Pay via bank QR</h2><span class="mu">${qrc.length} ${qrc.length>1?'people':'person'}</span></div>${expd.qrHide?'':`<div class="mu">Tap a code to enlarge it.</div>${qrc.map(r=>`<div class="sub"><div class="pr qrh"><span><b>${esc(nm(r.c))}</b></span><b class="bad">${peso(r.n)}</b></div>${qrThumbs(r.c,qrOf(r.c))}</div>`).join('')}`}</div>`;
  if(isAdmin()||id===me||[...ow,...ot].some(r=>canPay(r.d,r.c)))h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments to or from you.</div>'}<div class="row"><select ${at('ch','payFrom')}>${opts(ids,pay.from,'From')}</select><select ${at('ch','payTo')}>${opts(ids,pay.to,'To')}</select></div>
  <div class="row"><input inputmode="decimal" maxlength="12" placeholder="Amount ₱" value="${esc(pay.amount)}" ${at('in','payAmount')}><input maxlength="${LIM.note}" placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" ${at('in','payNote')}></div>
  <div class="lb">Attachments</div>${receiptPicker(pay.receipts,'pay')}
