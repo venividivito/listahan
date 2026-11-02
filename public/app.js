@@ -617,13 +617,17 @@ Object.assign(ACT,{
    if(++signFails>=5){signFails=0;signLock=Date.now()+60000}toast(e.message||'Sign-in failed')}}
 });
 let signFails=0,signLock=0;
+// keep only digits and a single period, preserving the caret position
+const decOnly=el=>{const v=el.value,c=el.selectionStart??v.length;
+ const f=s=>{let d=false;return s.replace(/[^0-9.]/g,'').replace(/\./g,()=>d?'':(d=true,'.'))};
+ const n=f(v);if(n===v)return;const p=f(v.slice(0,c)).length;el.value=n;try{el.setSelectionRange(p,p)}catch(e){}};
 Object.assign(INP,{
  cropZoom:el=>cropZoom(+el.value),
  payAmount:el=>{pay.amount=el.value},
  payNote:el=>{pay.note=el.value},
  search:el=>{q=el.value;ml()},
  itName:el=>{const i=ix(D.items,A0(el));if(i>=0)D.items[i].name=el.value},
- itPrice:el=>{const i=ix(D.items,A0(el));if(i>=0){D.items[i].price=el.value;pv()}},
+ itPrice:el=>{decOnly(el);const i=ix(D.items,A0(el));if(i>=0){D.items[i].price=el.value;pv()}},
  exLabel:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].label=el.value;pv()}},
  exValue:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].value=el.value;pv()}},
  dCatName:el=>{D.catName=el.value},
