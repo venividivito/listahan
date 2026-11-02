@@ -151,8 +151,8 @@ function renderMe(){
 const PH='<svg viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/></svg>';
 const avImg=u=>{const s=u&&safeUrl(u,true);return s?`<img src="${esc(s)}" alt="Your photo" referrerpolicy="no-referrer">`:PH};
 let pdArm=false,pdBusy=false,E=null;
-function openPd(){pdArm=false;pdView();$('#pd').hidden=false;document.body.style.overflow='hidden'}
-function closePd(){if(pdBusy)return;dropCrop();$('#pd').hidden=true;document.body.style.overflow=''}
+function openPd(){pdArm=false;pdView();$('#pd').hidden=false;document.body.style.overflow='hidden';hsync()}
+function closePd(){if(pdBusy)return;dropCrop();$('#pd').hidden=true;document.body.style.overflow='';hsync()}
 function dropCrop(){if(E?.blobUrl)URL.revokeObjectURL(E.blobUrl);E=null}
 function pdView(){dropCrop();const u=user?.photoURL;
  $('#pd .dlg').innerHTML=`<button class="cls" ${at('act','closePd')} aria-label="Close">✕</button><h2 id="pdt">Profile photo</h2><div class="pbig">${avImg(u)}</div>
@@ -226,12 +226,48 @@ function go(t){if(t==='new'&&!D)D=newDraft();if(t==='bal')bp=null;const same=t==
  const a=$('#app');if(same||matchMedia('(prefers-reduced-motion: reduce)').matches||!a.children.length){draw();return}
  nav();a.classList.add('out');
  goT=setTimeout(()=>{draw();a.classList.remove('out');a.classList.add('in');a.addEventListener('animationend',()=>a.classList.remove('in'),{once:true})},120)}
-function draw(){const f=document.activeElement?.id==='q',ev=$('#ed')?.value;nav();
+function draw(){const f=document.activeElement?.id==='q',ev=$('#ed')?.value;nav();hsync();
  if(!cur&&tab!=='people'){$('#app').innerHTML='<div class="card">No team selected. Create one under <b>People</b>.</div>';return}
  $('#app').innerHTML=({bal:vBal,meals:vMeals,new:vNew,people:vPeople})[tab]();if(tab==='new')pv();if(tab==='meals'){ml();if(f){const i=$('#q');i?.focus();i?.setSelectionRange(q.length,q.length)}}
  // keep an in-progress rename when live data triggers a redraw
  if(ev!=null&&$('#ed')){$('#ed').value=ev;$('#ed').focus()}}
 function onData(){if(tab!=='new')draw()}
+
+/* ---------- back navigation: OS/browser back and swipe-to-go-back ----------
+   Each open sub-view and overlay owns one history entry, so the native back button or edge swipe
+   closes it instead of leaving the app. In-app back buttons pop that entry again via hsync(). */
+const layers=()=>{const l=[];if(tab==='new'||(tab==='bal'&&bp))l.push('view');if(!$('#pd').hidden||!$('#lb').hidden)l.push('ovl');return l};
+let hd=history.state?.d|0,hskip=false,swiped=false;
+function hsync(){if(hskip)return;const t=layers().length;
+ if(t>hd)while(hd<t)history.pushState({d:++hd},'');
+ else if(t<hd){hskip=true;history.go(t-hd)}}
+function closeTop(k){
+ if(k==='ovl'){if(!$('#lb').hidden)closeReceipt();else closePd();return}
+ const a=$('#app'),s=swiped;swiped=false;
+ if(tab==='new'){if(D?.id)D=null;if(!s)return go('meals');tab='meals'}else bp=null;
+ draw();if(!s)return;
+ a.style.transition='none';a.style.transform='';a.style.opacity='';a.offsetWidth;a.style.transition='';
+ a.classList.add('in');a.addEventListener('animationend',()=>a.classList.remove('in'),{once:true})}
+addEventListener('popstate',e=>{hd=e.state?.d|0;
+ if(hskip){hskip=false;hsync();return}
+ for(let i=0;i<3&&layers().length>hd;i++)closeTop(layers().at(-1));
+ hsync()});
+let sw=null;
+addEventListener('touchstart',e=>{sw=null;const l=layers(),t=e.touches[0];
+ // leave the screen edge to the browser's own back gesture
+ if(e.touches.length>1||l.length!==1||l[0]!=='view'||t.clientX<20||e.target.closest?.('input,textarea,select,nav'))return;
+ sw={x:t.clientX,y:t.clientY,on:false,d:0,v:0,lx:t.clientX,lt:e.timeStamp}},{passive:true});
+addEventListener('touchmove',e=>{if(!sw)return;const t=e.touches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;
+ if(!sw.on){if(dx<-10||Math.abs(dy)>10&&Math.abs(dy)>dx){sw=null;return}if(dx<12||dx<Math.abs(dy)*1.5)return;sw.on=true;$('#app').style.transition='none'}
+ e.preventDefault();const dt=e.timeStamp-sw.lt;if(dt>0)sw.v=(t.clientX-sw.lx)/dt;sw.lx=t.clientX;sw.lt=e.timeStamp;
+ sw.d=Math.max(0,dx);const a=$('#app');a.style.transform=`translateX(${sw.d}px)`;a.style.opacity=1-sw.d/innerWidth*.6},{passive:false});
+const swEnd=e=>{const s=sw;sw=null;if(!s?.on)return;const a=$('#app');
+ a.style.transition='transform .2s cubic-bezier(.2,0,0,1),opacity .2s';
+ if(e.type==='touchend'&&(s.d>innerWidth*.33||(s.v>.4&&s.d>40))){
+  a.style.transform=`translateX(${innerWidth}px)`;a.style.opacity=0;
+  setTimeout(()=>{swiped=true;if(hd>0&&!hskip)history.back();else closeTop('view')},200)}
+ else{a.style.transform='';a.style.opacity='';setTimeout(()=>{if(!sw)a.style.transition=''},200)}};
+addEventListener('touchend',swEnd);addEventListener('touchcancel',swEnd);
 function arm(k,fn){if(armed!==k){armed=k;draw();setTimeout(()=>{if(armed===k){armed='';if(tab!=='new')draw()}},3000);return}armed='';fn()}
 const dlabel=(k,t)=>armed===k?'Tap again to confirm':t;
 
@@ -385,9 +421,9 @@ async function uploadReceipt(blob){
 let lbList=[],lbI=0;
 function showReceipt(){const b=$('#lb'),n=lbList.length;b.querySelector('img').src=safeUrl(lbList[lbI])||(String(lbList[lbI]).startsWith('blob:')?lbList[lbI]:'');
  b.querySelector('span').textContent=n>1?`${lbI+1} / ${n}`:'';b.querySelector('.p').hidden=b.querySelector('.n').hidden=n<2}
-function viewReceipt(list,i){lbList=list;lbI=i;showReceipt();$('#lb').hidden=false;document.body.style.overflow='hidden'}
+function viewReceipt(list,i){lbList=list;lbI=i;showReceipt();$('#lb').hidden=false;document.body.style.overflow='hidden';hsync()}
 const stepReceipt=d=>{lbI=(lbI+d+lbList.length)%lbList.length;showReceipt()};
-const closeReceipt=()=>{const b=$('#lb');b.hidden=true;b.querySelector('img').removeAttribute('src');document.body.style.overflow=''};
+const closeReceipt=()=>{const b=$('#lb');b.hidden=true;b.querySelector('img').removeAttribute('src');document.body.style.overflow='';hsync()};
 addEventListener('keydown',e=>{if($('#lb').hidden)return;if(e.key==='Escape')closeReceipt();else if(lbList.length>1&&e.key==='ArrowLeft')stepReceipt(-1);else if(lbList.length>1&&e.key==='ArrowRight')stepReceipt(1)});
 const rcOf=m=>m.receipts||(m.receipt?[m.receipt]:[]);
 const openMealReceipt=(id,i)=>viewReceipt(rcOf(meals.find(m=>m.id===id)||{}),i);
