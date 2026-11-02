@@ -441,6 +441,15 @@ const scanCard=()=>`<div class="card"><h2>Scan receipt</h2><div class="mu">Take 
  <div class="sub"><button id="scb" ${scanning?'disabled':''} ${at('act','scanBtn')}>${scanning?'Reading receipt…':scanArm?'Replace current items? Tap again':SCAN_LBL}</button></div>
  <input type="file" id="scf" accept="image/*" multiple hidden ${at('ch','scanFiles')}></div>`;
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
+/* Reset: wipe the new-expense draft (fields, people, items, extras, attached photos) back to a blank form. */
+let rsArm=0;
+const RS_LBL='↺ Reset';
+function resetDraft(){
+ if(!D||D.id)return;
+ if(!rsArm){rsArm=setTimeout(()=>{rsArm=0;const b=$('#rsb');if(b)b.textContent=RS_LBL},3000);const b=$('#rsb');if(b)b.textContent='Clear everything? Tap again';return}
+ clearTimeout(rsArm);rsArm=0;clearTimeout(scanArm);scanArm=0;
+ D.receipts.forEach(r=>r.prev&&URL.revokeObjectURL(r.prev));
+ D=newDraft();draw();scrollTo({top:0,behavior:'smooth'});toast('Cleared. Starting fresh.')}
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" ${l?at('act',fn,l,i,id):at('act',fn,id)}>${esc(nm(id))}</button>`).join('')}
 function togA(id){const a=D.attendees;D.attendees=a.includes(id)?a.filter(x=>x!==id):[...a,id];draw()}
@@ -454,7 +463,7 @@ function vNew(){
  const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" maxlength="${LIM.label}" placeholder="Label" value="${esc(x.label)}" ${at('in','exLabel',i)}><input class="g1" inputmode="decimal" maxlength="12" placeholder="Value" value="${esc(x.value)}" ${at('in','exValue',i)}><select style="width:84px;padding-left:12px" ${at('ch','exType',i)}><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" ${at('act','exDel',i)}>✕</button></div>
   <div class="row"><select ${at('ch','exSign',i)}><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select ${at('ch','exMode',i)}><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
   <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" ${at('act','allL','extras',i)}>Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
- return `<button class="sm" style="margin-bottom:10px" ${at('act','cancelExpense')}>${D.id?'← Cancel edit':'← Expenses'}</button>${scanCard()}<div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
+ return `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:10px"><button class="sm" ${at('act','cancelExpense')}>${D.id?'← Cancel edit':'← Expenses'}</button>${D.id?'':`<button class="sm" style="color:var(--bad)" id="rsb" ${at('act','resetDraft')}>${rsArm?'Clear everything? Tap again':RS_LBL}</button>`}</div>${scanCard()}<div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
  <div class="lb">Category</div><div class="chips">${Object.entries(CAT).map(([k,c])=>`<button type="button" class="chip ${catOf(D)===k?'on':''}" ${at('act','setCat',k)}>${c.icon} ${c.name}</button>`).join('')}</div>
  ${catOf(D)==='custom'?`<label>Category name<input list="cn" maxlength="${LIM.cat}" placeholder="e.g. Groceries, Lodging, Gift" value="${esc(D.catName)}" ${at('in','dCatName')}></label><datalist id="cn">${customs.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`:''}
  <div class="row"><label class="g1">Date<input type="date" value="${esc(D.date)}" ${at('in','dDate')}></label><label class="g1">${catOf(D)==='meal'?'Place':'Description'}<input maxlength="${LIM.place}" placeholder="${esc(C.place)}" value="${esc(D.place)}" ${at('in','dPlace')}></label></div>
@@ -572,7 +581,7 @@ Object.assign(ACT,{
  markPaid:el=>markPaid(A0(el),B0(el),+C0(el)),
  allBal:()=>{bp=null;draw()},
  setPay:el=>setPay(A0(el),B0(el),+C0(el)),
- savePay,saveMeal,addTeam,addMember,addRole,migrate,scanBtn,
+ savePay,saveMeal,addTeam,addMember,addRole,migrate,scanBtn,resetDraft,
  addExpense:()=>{if(D&&D.id)D=null;go('new')},
  fcat:el=>{fcat=A0(el)==='all'||Object.hasOwn(CAT,A0(el))?A0(el):'all';draw()},
  openMealReceipt:el=>openMealReceipt(A0(el),+B0(el)),
