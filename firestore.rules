@@ -98,7 +98,11 @@ service cloud.firestore {
       match /members/{id} {
         allow read: if inTeam(t);
         allow create: if isAdmin() && okId(id) && validMember(request.resource.data);
-        allow update: if isAdmin() && validMember(request.resource.data);
+        // Contributors may only change the bank QR codes on their own person.
+        allow update: if validMember(request.resource.data)
+          && (isAdmin()
+              || (inTeam(t) && memberIn(t) == id
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['qr'])));
         allow delete: if isAdmin();
       }
 
@@ -159,9 +163,15 @@ service cloud.firestore {
     }
 
     function validMember(d) {
-      return d.keys().hasOnly(['name', 'created'])
+      return d.keys().hasOnly(['name', 'created', 'qr'])
         && nonEmpty(d.name, 100)
-        && d.get('created', 0) is number;
+        && d.get('created', 0) is number
+        && qrOk(d.get('qr', []));
+    }
+
+    // Bank QR codes: same Cloudinary-only check as receipts, at most 3.
+    function qrOk(r) {
+      return r is list && r.size() <= 3 && rcOk(r, 0) && rcOk(r, 1) && rcOk(r, 2);
     }
 
     function validExpense(d) {

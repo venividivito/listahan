@@ -30,7 +30,7 @@ document.addEventListener('pointerdown',route(PTR,'pd'));
    Rules are the real gate, but any signed-in contributor can write documents, so the UI never trusts
    shapes, lengths or URLs. Everything is coerced to the expected type before it is rendered. */
 const ID_RE=/^[A-Za-z0-9_-]{1,64}$/,EMAIL_RE=/^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/,DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
-const LIM={name:100,team:60,place:200,note:200,cat:60,label:100,item:200,email:254,receipts:10,attendees:100,items:200,extras:50};
+const LIM={name:100,team:60,place:200,note:200,cat:60,label:100,item:200,email:254,receipts:10,attendees:100,items:200,extras:50,qr:3};
 const str=(v,n)=>typeof v==='string'?v.slice(0,n):'';
 const num=(v,max=1e9)=>{v=typeof v==='number'?v:parseFloat(v);return Number.isFinite(v)?Math.min(Math.max(v,-max),max):0};
 const strs=(v,n)=>Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,n).map(x=>x.slice(0,LIM.name)):[];
@@ -42,7 +42,7 @@ function safeUrl(u,avatar){
   if(avatar&&/^lh[0-9]\.googleusercontent\.com$/.test(x.hostname))return x.href}catch{}
  return ''}
 const urls=v=>(Array.isArray(v)?v:[]).slice(0,LIM.receipts).map(u=>safeUrl(u)).filter(Boolean);
-const normMember=d=>({id:d.id,name:str(d.name,LIM.name)||'Unnamed',created:num(d.created,1e14)});
+const normMember=d=>({id:d.id,name:str(d.name,LIM.name)||'Unnamed',created:num(d.created,1e14),qr:urls(d.qr).slice(0,LIM.qr)});
 const normPay=d=>({id:d.id,from:str(d.from,LIM.name),to:str(d.to,LIM.name),amount:Math.max(num(d.amount,1e7),0),note:str(d.note,LIM.note),date:str(d.date,10),
  created:num(d.created,1e14),meal:str(d.meal,LIM.name),receipts:urls(d.receipts)});
 const normMeal=d=>({id:d.id,uid:str(d.uid,128),category:Object.hasOwn(CAT,d.category)?d.category:'meal',catName:str(d.catName,LIM.cat),date:str(d.date,10),place:str(d.place,LIM.place),
@@ -283,6 +283,9 @@ function vPerson(L,id){
  h+=ot.map(r=>`<div class="pr"><span>${esc(nm(r.d))} owes them</span><b class="ok">${peso(r.n)}</b>${canPay(r.d,r.c)?`<button class="sm" ${at('act','setPay',r.d,r.c,r.n)}>Receive</button>`:''}</div>`).join('');
  if(!ow.length&&!ot.length)h+='<p class="mu">All settled up. 🎉</p>';
  h+=`<p class="mu">${autoNet?'Totals are netted between each pair of people.':'Auto-net is off: debts in each direction are shown separately.'}</p></div>`;
+ // QR codes of everyone this person owes, so they can pay each one directly
+ const qrc=ow.filter(r=>qrOf(r.c).length);
+ if(qrc.length)h+=`<div class="card"><h2>Pay via bank QR</h2><div class="mu">Tap a code to enlarge it.</div>${qrc.map(r=>`<div class="sub"><div class="pr qrh"><span><b>${esc(nm(r.c))}</b></span><b class="bad">${peso(r.n)}</b></div>${qrThumbs(r.c,qrOf(r.c))}</div>`).join('')}</div>`;
  if(isAdmin()||id===me||[...ow,...ot].some(r=>canPay(r.d,r.c)))h+=`<div class="card"><h2>Record a payment</h2>${isAdmin()?'':'<div class="mu">You can only log payments to or from you.</div>'}<div class="row"><select ${at('ch','payFrom')}>${opts(ids,pay.from,'From')}</select><select ${at('ch','payTo')}>${opts(ids,pay.to,'To')}</select></div>
  <div class="row"><input inputmode="decimal" maxlength="12" placeholder="Amount ₱" value="${esc(pay.amount)}" ${at('in','payAmount')}><input maxlength="${LIM.note}" placeholder="Note (GCash, cash…)" value="${esc(pay.note)}" ${at('in','payNote')}></div>
  <div class="lb">Attachments</div>${receiptPicker(pay.receipts,'pay')}
@@ -385,7 +388,7 @@ async function uploadReceipt(blob){
 let lbList=[],lbI=0;
 function showReceipt(){const b=$('#lb'),n=lbList.length;b.querySelector('img').src=safeUrl(lbList[lbI])||(String(lbList[lbI]).startsWith('blob:')?lbList[lbI]:'');
  b.querySelector('span').textContent=n>1?`${lbI+1} / ${n}`:'';b.querySelector('.p').hidden=b.querySelector('.n').hidden=n<2}
-function viewReceipt(list,i){lbList=list;lbI=i;showReceipt();$('#lb').hidden=false;document.body.style.overflow='hidden'}
+function viewReceipt(list,i,alt='Receipt'){lbList=list;lbI=i;$('#lb img').alt=alt;showReceipt();$('#lb').hidden=false;document.body.style.overflow='hidden'}
 const stepReceipt=d=>{lbI=(lbI+d+lbList.length)%lbList.length;showReceipt()};
 const closeReceipt=()=>{const b=$('#lb');b.hidden=true;b.querySelector('img').removeAttribute('src');document.body.style.overflow=''};
 addEventListener('keydown',e=>{if($('#lb').hidden)return;if(e.key==='Escape')closeReceipt();else if(lbList.length>1&&e.key==='ArrowLeft')stepReceipt(-1);else if(lbList.length>1&&e.key==='ArrowRight')stepReceipt(1)});
@@ -520,7 +523,7 @@ function vPeople(){
  if(A)h+=`<div class="card"><h2>Teams</h2>${teams.map(t=>nameRow('t:'+t.id,t.name,`${t.id===cur?'<span class="mu">current</span>':`<button class="sm" ${at('act','openTeam',t.id)}>Open</button>`}<button class="sm" ${at('act','editName','t:'+t.id)}>Rename</button><button class="sm" ${at('act','delTeam',t.id)}>Delete</button>`)).join('')||'<p class="mu">No teams yet.</p>'}
  <div class="row sub"><input id="tn" maxlength="${LIM.team}" placeholder="New team name" ${at('kd','teamKey')}><button ${at('act','addTeam')}>Create</button></div></div>`;
  if(!cur)return h;
- h+=`<div class="card"><h2>${esc(tname(cur))} · people</h2>${members.map(m=>nameRow('m:'+m.id,m.name,!A?'':`<button class="sm" ${at('act','editName','m:'+m.id)}>Rename</button>${used(m.id)?'<span class="mu">in use</span>':`<button class="sm" ${at('act','delMember',m.id)}>${dlabel('u'+m.id,'Remove')}</button>`}`)).join('')||'<p class="mu">No one yet.</p>'}
+ h+=`<div class="card"><h2>${esc(tname(cur))} · people</h2>${members.map(m=>nameRow('m:'+m.id,m.name,(canQr(m.id)?`<button class="sm" ${at('act','qrEdit',m.id)}>${qrEd===m.id?'▾ ':''}QR${m.qr.length?' ('+m.qr.length+')':''}</button>`:'')+(!A?'':`<button class="sm" ${at('act','editName','m:'+m.id)}>Rename</button>${used(m.id)?'<span class="mu">in use</span>':`<button class="sm" ${at('act','delMember',m.id)}>${dlabel('u'+m.id,'Remove')}</button>`}`))+(qrEd===m.id&&canQr(m.id)?qrEditor(m):'')).join('')||'<p class="mu">No one yet.</p>'}
  ${A?`<div class="row sub"><input id="nn" maxlength="${LIM.name}" placeholder="Name" ${at('kd','memberKey')}><button ${at('act','addMember')}>Add</button></div>`:''}</div>`;
  const acc=roles.filter(r=>r.role==='admin'||(r.teams&&cur in r.teams));
  if(A)h+=`<div class="card"><h2>Access to ${esc(tname(cur))}</h2><div class="mu">Contributors only see teams they're added to. Admins see every team.</div>${acc.map(r=>`<div class="pr"><span>${esc(r.id)}<br><span class="mu">${r.teams?.[cur]?esc(nm(r.teams[cur]))+' · ':''}${r.role==='admin'?'Admin (all teams)':'Contributor'}</span></span>${r.id===user.email.toLowerCase()?'':`<button class="sm" ${at('act','delRole',r.id)}>${dlabel('r'+r.id,r.role==='admin'?'Remove access':'Remove from team')}</button>`}</div>`).join('')}
@@ -534,6 +537,29 @@ const delRole=id=>arm('r'+id,async()=>{const r=roles.find(x=>x.id===id),ref=db.c
 async function addMember(){const v=clean($('#nn').value,LIM.name);if(!v)return;if(members.some(m=>m.name.toLowerCase()===v.toLowerCase()))return toast('Already added');
  try{await T('members').add({name:v,created:Date.now()});$('#nn').value=''}catch(e){toast('Could not add')}}
 const delMember=id=>arm('u'+id,()=>T('members').doc(id).delete().catch(()=>toast('Could not remove')));
+
+/* ---------- bank QR codes: up to LIM.qr images per person, shown on their balance page ---------- */
+let qrEd='',qrBusy='';
+const canQr=id=>isAdmin()||(!!me&&me===id);
+const qrOf=id=>(members.find(m=>m.id===id)||{}).qr||[];
+const qrThumb=u=>safeUrl(u).replace('/upload/','/upload/w_300,c_limit/');
+const qrThumbs=(id,L)=>`<div class="qrs">${L.map((u,i)=>`<button type="button" class="qr" aria-label="Open QR code ${i+1}" ${at('act','openQr',id,i)}><img src="${esc(qrThumb(u))}" alt="QR code ${i+1}" referrerpolicy="no-referrer"></button>`).join('')}</div>`;
+function qrEditor(m){const L=m.qr,busy=qrBusy===m.id;
+ return `<div class="sub qred"><div class="mu">Bank or e-wallet QR codes others can scan to pay ${esc(m.name)}. Up to ${LIM.qr}.</div>
+ ${L.length?`<div class="qrs">${L.map((u,i)=>`<div><button type="button" class="qr" aria-label="Open QR code ${i+1}" ${at('act','openQr',m.id,i)}><img src="${esc(qrThumb(u))}" alt="QR code ${i+1}" referrerpolicy="no-referrer"></button><button class="sm qrx" ${busy?'disabled':''} ${at('act','dropQr',m.id,i)}>${dlabel('q'+m.id+':'+i,'Remove')}</button></div>`).join('')}</div>`:''}
+ ${busy?'<div class="mu">Uploading…</div>':L.length<LIM.qr?`<label class="sm qradd">＋ Add QR code${LIM.qr-L.length>1?'s':''}<input type="file" accept="image/*" multiple hidden ${at('ch','pickQr',m.id)}></label>`:`<div class="mu">Maximum of ${LIM.qr} QR codes.</div>`}</div>`}
+async function pickQr(id,fs){const m=members.find(x=>x.id===id);if(!m||!canQr(id)||qrBusy)return;
+ const ok=[...fs].filter(imgOk),room=LIM.qr-m.qr.length;if(!ok.length)return;
+ if(ok.length>room)toast(`Up to ${LIM.qr} QR codes`);if(room<=0)return;
+ qrBusy=id;draw();
+ try{const add=[];for(const f of ok.slice(0,room))add.push(await uploadReceipt(await shrink(f,1600,.92)));
+  // re-read in case the list changed while uploading
+  const now=qrOf(id);await T('members').doc(id).update({qr:[...now,...add].slice(0,LIM.qr)});toast('QR code saved')}
+ catch(e){toast('Could not save QR code: '+(e.message||e.code||''))}
+ qrBusy='';draw()}
+function dropQr(id,i){if(!canQr(id)||qrBusy)return;
+ arm('q'+id+':'+i,async()=>{const L=qrOf(id);if(!(i>=0&&i<L.length))return;
+  try{await T('members').doc(id).update({qr:L.filter((_,j)=>j!==i)});toast('QR code removed')}catch(e){toast('Could not remove QR code')}})}
 let ed='';
 const nameRow=(k,name,btns)=>ed===k?`<div class="row" style="padding:6px 0"><input id="ed" class="g1" maxlength="${LIM.name}" value="${esc(name)}" ${at('kd','nameKey',k)}><button class="sm" ${at('act','saveName',k)}>Save</button><button class="sm" ${at('act','cancelEdit')}>Cancel</button></div>`
  :`<div class="pr"><span>${esc(name)}</span>${btns}</div>`;
@@ -605,6 +631,9 @@ Object.assign(ACT,{
  editName:el=>editName(A0(el)),
  delTeam:el=>delTeam(A0(el)),
  delMember:el=>delMember(A0(el)),
+ qrEdit:el=>{qrEd=qrEd===A0(el)?'':A0(el);draw()},
+ openQr:el=>{const L=qrOf(A0(el)),i=ix(L,B0(el));if(i>=0)viewReceipt(L,i,'QR code')},
+ dropQr:el=>{const i=ix(qrOf(A0(el)),B0(el));if(i>=0)dropQr(A0(el),i)},
  delRole:el=>delRole(A0(el)),
  saveName:el=>saveName(A0(el)),
  cancelEdit:()=>{ed='';draw()},
@@ -641,6 +670,7 @@ Object.assign(CHG,{
  payFrom:el=>setPayParty('from',el.value),
  payTo:el=>setPayParty('to',el.value),
  pickReceipts:el=>{if(['pay','D'].includes(A0(el)))pickReceipts(el.files,A0(el))},
+ pickQr:el=>{const fs=[...el.files];el.value='';pickQr(A0(el),fs)},
  scanFiles:el=>{const fs=[...el.files];el.value='';scanFiles(fs)},
  exType:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].type=el.value==='amt'?'amt':'pct';pv()}},
  exSign:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].sign=+el.value<0?-1:1;pv()}},
