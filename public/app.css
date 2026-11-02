@@ -83,6 +83,7 @@ label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
 .qrx{width:100%;margin-top:6px;padding:4px 6px;font-size:12px}
 .qradd{display:block;margin:8px 0 2px;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)}
 .qrh{border-bottom:0;padding:0}
+.qrown{margin-top:8px}
 .qred{margin-top:0;padding-bottom:10px;border-bottom:1px solid var(--ln)}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);font-size:14px;line-height:20px;letter-spacing:.25px;padding:14px 16px;min-height:48px;border-radius:4px;box-shadow:var(--sh3);opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
 #toast.s{opacity:1}
