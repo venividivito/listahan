@@ -4,7 +4,14 @@ import {initializeApp,getApps} from 'https://www.gstatic.com/firebasejs/13.1.0/f
 import {initializeAppCheck,ReCaptchaEnterpriseProvider} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js';
 import {getAI,getGenerativeModel,GoogleAIBackend,Schema} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js';
 
-const MODEL='gemini-3.8-flash',FALLBACK='gemini-3.5-flash-lite';
+/* Flash-Lite reads a 70-line receipt photo in ~8-10s with no errors in testing and has a much larger free quota.
+   Flash (with its default "thinking") took 30s+ and only allows 20 free requests a day, so it is only a fallback,
+   with thinking turned down. */
+const MODELS=[
+ {name:'gemini-3.5-flash-lite',gen:{}},
+ {name:'gemini-3.8-flash',gen:{thinkingConfig:{thinkingLevel:'LOW'}}}
+];
+const TIMEOUT=45000;
 
 const PROMPT=`You read photos of shop and restaurant receipts (mostly from the Philippines, amounts in pesos) so a group can split the bill.
 Extract what was bought and every line that changes the amount payable. Read numbers exactly as printed.
@@ -48,11 +55,11 @@ const SCHEMA=Schema.object({properties:{
 }});
 
 let ai=null;
-const models={};
-function getModel(name,config,recaptchaKey){
- if(models[name])return models[name];
+const models={},spent=new Set();
+function getModel(m,config,recaptchaKey){
+ if(models[m.name])return models[m.name];
  if(!ai)ai=initAI(config,recaptchaKey);
- return models[name]=getGenerativeModel(ai,{model:name,generationConfig:{responseMimeType:'application/json',responseSchema:SCHEMA}});
+ return models[m.name]=getGenerativeModel(ai,{model:m.name,generationConfig:{responseMimeType:'application/json',responseSchema:SCHEMA,...m.gen}});
 }
 function initAI(config,recaptchaKey){
  // a separate (modular) app instance: the rest of the site uses the compat SDK, which has no AI module
@@ -66,8 +73,14 @@ function initAI(config,recaptchaKey){
 }
 
 // Gemini returns 500/503 ("high demand") or 429 when a model is overloaded; those are worth retrying.
-const busy=e=>/\b(500|502|503|504|429)\b|high demand|overloaded|unavailable|resource.?exhausted|try again later/i.test(String(e?.message||e));
+const msg=e=>String(e?.message||e);
+const busy=e=>/\b(500|502|503|504|429)\b|high demand|overloaded|unavailable|resource.?exhausted|try again later|timeout|abort/i.test(msg(e));
+// a used-up daily quota won't recover for hours, so stop calling that model for the rest of the visit
+const dailyOut=e=>/per day|requests per day|PerDay/i.test(msg(e));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* Called when the user taps Scan: loads the SDK and starts App Check/reCAPTCHA while they pick a photo. */
+export function warm({config,recaptchaKey}){getModel(MODELS[0],config,recaptchaKey)}
 
 const b64=blob=>new Promise((ok,no)=>{const r=new FileReader();
  r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(r.error||new Error('Could not read image'));r.readAsDataURL(blob)});
@@ -75,13 +88,14 @@ const b64=blob=>new Promise((ok,no)=>{const r=new FileReader();
 /* images: JPEG/PNG blobs of one receipt. Returns the raw parsed JSON; app.js validates every field. */
 export async function readReceipt(images,{config,recaptchaKey}){
  const parts=await Promise.all(images.map(async b=>({inlineData:{data:await b64(b),mimeType:b.type||'image/jpeg'}})));
- // try the main model twice, then the lighter fallback model, before giving up
- const plan=[[MODEL,0],[MODEL,1500],[FALLBACK,0],[FALLBACK,2500]];
+ // main model, one quick retry if it's momentarily overloaded, then the fallback model
+ const plan=[[MODELS[0],0],[MODELS[0],1000],[MODELS[1],0]];
  let err;
- for(const [name,wait] of plan){
+ for(const [m,wait] of plan){
+  if(spent.has(m.name))continue;
   if(wait)await sleep(wait);
-  try{const r=await getModel(name,config,recaptchaKey).generateContent([PROMPT,...parts]);return JSON.parse(r.response.text())}
-  catch(e){err=e;if(!busy(e))throw e;console.warn(`Receipt reader ${name} busy, retrying`,e)}
+  try{const r=await getModel(m,config,recaptchaKey).generateContent([PROMPT,...parts],{timeout:TIMEOUT});return JSON.parse(r.response.text())}
+  catch(e){err=e;if(!busy(e))throw e;if(dailyOut(e))spent.add(m.name);console.warn(`Receipt reader ${m.name} unavailable, trying next`,e)}
  }
- throw err;
+ throw err||new Error('Receipt reader quota reached for today (per day)');
 }

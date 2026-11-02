@@ -402,9 +402,12 @@ const money=v=>{v=typeof v==='number'?v:parseFloat(v);return Number.isFinite(v)&
 const draftFilled=()=>D.items.some(i=>i.name.trim()||String(i.price).trim())||D.extras.length>0;
 function scanBtn(){if(scanning)return;
  if(draftFilled()&&!scanArm){scanArm=setTimeout(()=>{scanArm=0;const b=$('#scb');if(b&&!scanning)b.textContent=SCAN_LBL},3000);$('#scb').textContent='Replace current items? Tap again';return}
- clearTimeout(scanArm);scanArm=0;const b=$('#scb');if(b)b.textContent=SCAN_LBL;$('#scf')?.click()}
+ clearTimeout(scanArm);scanArm=0;const b=$('#scb');if(b)b.textContent=SCAN_LBL;$('#scf')?.click();
+ // get the AI SDK and App Check ready while the photo is being taken or picked
+ import('./scan.js').then(m=>m.warm({config:firebaseConfig,recaptchaKey:RECAPTCHA_KEY})).catch(()=>{})}
 const scanErr=e=>{const s=String(e?.code||'')+' '+String(e?.message||e||'');
- if(/\b(500|502|503|504|429)\b|high demand|overloaded|unavailable|quota|resource.?exhausted|too.?many/i.test(s))return 'The receipt reader is busy right now. Try again in a minute.';
+ if(/per day|PerDay/i.test(s))return 'Today’s free receipt-scan limit is used up. Type it in for now, or try again tomorrow.';
+ if(/\b(500|502|503|504|429)\b|high demand|overloaded|unavailable|quota|resource.?exhausted|too.?many|timeout/i.test(s))return 'The receipt reader is busy right now. Try again in a minute.';
  if(/app.?check|recaptcha/i.test(s))return 'Receipt scanning was blocked by App Check.';
  if(/api-not-enabled|not.?been.?used|PERMISSION_DENIED|\b403\b/i.test(s))return 'Receipt scanning isn’t enabled for this Firebase project yet.';
  if(!navigator.onLine||/failed to fetch|networkerror|load failed|network.?request|ERR_/i.test(s))return 'Couldn’t reach the receipt reader. Check your connection.';
@@ -413,11 +416,12 @@ async function scanFiles(fs){
  if(scanning||!D)return;const ok=fs.filter(imgOk);if(!ok.length)return;
  if(ok.length>MAXS)toast(`Only the first ${MAXS} photos are read`);
  const d=D,use=ok.slice(0,MAXS);scanning=true;draw();
+ const slow=setTimeout(()=>{const b=$('#scb');if(b&&scanning)b.textContent='Still reading… long receipts take a bit longer'},12000);
  try{const [{readReceipt},imgs]=await Promise.all([import('./scan.js'),Promise.all(use.map(f=>shrink(f,2400,.85)))]);
   const r=await readReceipt(imgs,{config:firebaseConfig,recaptchaKey:RECAPTCHA_KEY});
   if(D===d&&!fillFromScan(r,use))toast('No items found. Try a clearer, flatter photo of the whole receipt.')}
  catch(e){console.error('Receipt scan failed',e);toast(scanErr(e))}
- finally{scanning=false;if(tab==='new')draw()}}
+ finally{clearTimeout(slow);scanning=false;if(tab==='new')draw()}}
 // The model's answer is untrusted input: coerce every field before it touches the draft.
 function fillFromScan(r,files){
  if(!r||typeof r!=='object'||r.isReceipt===false)return false;
