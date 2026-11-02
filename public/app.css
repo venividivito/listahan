@@ -103,7 +103,7 @@ label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
 #lb .p,#lb .n{top:50%;transform:translateY(-50%);min-height:48px;width:40px;opacity:.9}
 #lb .p{left:6px}#lb .n{right:6px}
 #lb span{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#fff;font-size:14px}
-.sw{display:flex;align-items:center;gap:12px;font-size:12px;line-height:16px;color:var(--mu);cursor:pointer;margin:0;user-select:none}
+.sw{display:flex;align-items:center;gap:12px;font-size:12px;line-height:16px;color:var(--mu);cursor:pointer;margin:0;user-select:none;-webkit-tap-highlight-color:transparent}
 .sw input{display:none}
 .sw i{position:relative;width:52px;height:32px;border-radius:99px;border:2px solid var(--outl);background:var(--hi);transition:background .2s,border-color .2s;flex:none}
 .sw i::after{content:'';position:absolute;top:50%;left:6px;width:16px;height:16px;margin-top:-8px;border-radius:50%;background:var(--outl);transition:transform .2s,width .2s,height .2s,margin-top .2s,left .2s,background .2s}
