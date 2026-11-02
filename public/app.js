@@ -10,6 +10,8 @@ const firebaseConfig={
 /* ============================================================================ */
 // Cloudinary receipt storage: cloud name and an UNSIGNED upload preset name
 const CLOUDINARY={cloud:'czzsvajf',preset:'listahan'};
+// Receipt scanning (Firebase AI Logic): reCAPTCHA Enterprise site key for App Check. Empty = App Check off.
+const RECAPTCHA_KEY='6Lf6sgwuAAAAADnFPuNoj23TKd-ML_Z9auBcL80w';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
 
@@ -123,20 +125,21 @@ const greet=()=>{const h=new Date().getHours();return h<12?'Good morning':h<18?'
 let meHtml='',lgIn=false;
 /* A wide pen follows the letter outlines in order, so each letter fills in as if written.
    Driven from JS because browsers don't repaint CSS animations inside an SVG mask reliably. */
-let lgRaf=0,lgLens=[],lgTot=0;
+let lgRaf=0,lgLens=[],lgTot=0,lgInt=null;
 function drawLogo(t){
  const ms=document.querySelectorAll('.mk');if(!ms.length)return;
  const g=Math.min(t/.84,1),u=(1-Math.cos(Math.PI*g))/2*.6+g*.4,w=300+400*Math.max(0,(t-.84)/.16);
  let from=0;ms.forEach((m,i)=>{const L=lgLens[i],p=Math.min(Math.max((u*lgTot-from)/L,0),1);from+=L;
   m.style.strokeDasharray=`${L}px ${L*2}px`;m.style.strokeDashoffset=(L*(1-p))+'px';m.style.strokeWidth=w+'px'})}
-function setLogo(mode){const l=$('#logo');if(!l)return;cancelAnimationFrame(lgRaf);
+function setLogo(mode){const l=$('#logo');if(!l)return;cancelAnimationFrame(lgRaf);clearInterval(lgInt);
  const ms=document.querySelectorAll('.mk');ms.forEach(m=>m.style.cssText='');
  lgLens=[...ms].map((_,i)=>Math.ceil($('#lp'+i).getTotalLength())+2);lgTot=lgLens.reduce((a,b)=>a+b,0);
  if(mode!=='play'||matchMedia('(prefers-reduced-motion: reduce)').matches){l.className='logo still';return}
  drawLogo(0);l.className='logo play';
  const t0=performance.now(),D=2800;
  const step=now=>{const t=Math.min((now-t0)/D,1);drawLogo(t);if(t<1)lgRaf=requestAnimationFrame(step);else{ms.forEach(m=>m.style.cssText='');l.className='logo still'}};
- lgRaf=requestAnimationFrame(step)}
+ lgRaf=requestAnimationFrame(step);
+ lgInt=setInterval(()=>{if(l){cancelAnimationFrame(lgRaf);drawLogo(0);l.className='logo play';const t0=performance.now(),D=2800;const step=now=>{const t=Math.min((now-t0)/D,1);drawLogo(t);if(t<1)lgRaf=requestAnimationFrame(step);else{ms.forEach(m=>m.style.cssText='');l.className='logo still'}};lgRaf=requestAnimationFrame(step)}},30000)}
 const playLogo=()=>setLogo('play'),logoStill=()=>setLogo('still');
 function renderMe(){
  const el=$('#me');if(!el)return;
@@ -359,9 +362,9 @@ const delMeal=id=>arm('m'+id,()=>T('meals').doc(id).delete().catch(()=>toast('Co
 
 /* ---------- add / edit expense ---------- */
 const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:'',receipts:[]});
-function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
- i.onload=()=>{URL.revokeObjectURL(u);const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);
-  c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):no(new Error('Could not process image')),'image/jpeg',.82)};
+function shrink(f,max=1600,q=.82){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
+ i.onload=()=>{URL.revokeObjectURL(u);const s=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);
+  c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):no(new Error('Could not process image')),'image/jpeg',q)};
  i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('Not a valid image'))};i.src=u})}
 const MAXR=10,MAXB=15*1024*1024;
 function imgOk(f){if(!f.type.startsWith('image/')){toast('Only image files are added');return false}
@@ -392,6 +395,47 @@ const openDraftReceipt=(i,t)=>viewReceipt(recList(t).map(r=>r.prev||r.url),i);
 function receiptPicker(L,t){
  return (L.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:8px">${L.map((r,i)=>`<div style="position:relative"><img src="${esc(r.prev||safeUrl(r.url).replace('/upload/','/upload/w_200,c_limit/'))}" alt="Attachment ${i+1}" ${at('act','openDraftReceipt',i,t)} style="width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--ln);display:block"><button class="x sm" style="position:absolute;top:2px;right:2px;width:28px;min-height:28px" ${at('act','dropReceipt',i,t)}>✕</button></div>`).join('')}</div>`:'<div class="mu" style="margin-bottom:8px">Optional. Take photos or choose images.</div>')+
  (L.length<MAXR?`<label class="sm" style="display:block;margin:0 0 8px;text-align:center;border:1px solid var(--ln);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--tx)">＋ Add photos<input type="file" accept="image/*" multiple style="display:none" ${at('ch','pickReceipts',t)}></label>`:`<div class="mu">Maximum of ${MAXR} attachments.</div>`)}
+/* ---------- receipt scanning: Gemini reads the photo, we fill in the draft (people are still picked by hand) ---------- */
+let scanning=false,scanArm=0;
+const MAXS=4,SCAN_LBL='📷 Scan receipt';
+const money=v=>{v=typeof v==='number'?v:parseFloat(v);return Number.isFinite(v)&&v>0&&v<1e8?Math.round(v*100)/100:0};
+const draftFilled=()=>D.items.some(i=>i.name.trim()||String(i.price).trim())||D.extras.length>0;
+function scanBtn(){if(scanning)return;
+ if(draftFilled()&&!scanArm){scanArm=setTimeout(()=>{scanArm=0;const b=$('#scb');if(b&&!scanning)b.textContent=SCAN_LBL},3000);$('#scb').textContent='Replace current items? Tap again';return}
+ clearTimeout(scanArm);scanArm=0;const b=$('#scb');if(b)b.textContent=SCAN_LBL;$('#scf')?.click()}
+const scanErr=e=>{const s=String(e?.code||'')+' '+String(e?.message||e||'');
+ if(/\b(500|502|503|504|429)\b|high demand|overloaded|unavailable|quota|resource.?exhausted|too.?many/i.test(s))return 'The receipt reader is busy right now. Try again in a minute.';
+ if(/app.?check|recaptcha/i.test(s))return 'Receipt scanning was blocked by App Check.';
+ if(/api-not-enabled|not.?been.?used|PERMISSION_DENIED|\b403\b/i.test(s))return 'Receipt scanning isn’t enabled for this Firebase project yet.';
+ if(!navigator.onLine||/failed to fetch|networkerror|load failed|network.?request|ERR_/i.test(s))return 'Couldn’t reach the receipt reader. Check your connection.';
+ return 'Couldn’t read the receipt. Try a clearer photo or type it in.'};
+async function scanFiles(fs){
+ if(scanning||!D)return;const ok=fs.filter(imgOk);if(!ok.length)return;
+ if(ok.length>MAXS)toast(`Only the first ${MAXS} photos are read`);
+ const d=D,use=ok.slice(0,MAXS);scanning=true;draw();
+ try{const [{readReceipt},imgs]=await Promise.all([import('./scan.js'),Promise.all(use.map(f=>shrink(f,2400,.85)))]);
+  const r=await readReceipt(imgs,{config:firebaseConfig,recaptchaKey:RECAPTCHA_KEY});
+  if(D===d&&!fillFromScan(r,use))toast('No items found. Try a clearer, flatter photo of the whole receipt.')}
+ catch(e){console.error('Receipt scan failed',e);toast(scanErr(e))}
+ finally{scanning=false;if(tab==='new')draw()}}
+// The model's answer is untrusted input: coerce every field before it touches the draft.
+function fillFromScan(r,files){
+ if(!r||typeof r!=='object'||r.isReceipt===false)return false;
+ const items=list(r.items,LIM.items).map(i=>{const n=Math.round(num(i.quantity,1e4)),lb=clean(i.name,LIM.item-6)||'Item';
+  return{name:n>1?`${lb} ×${n}`:lb,price:String(money(i.price)),all:false,people:[]}}).filter(i=>+i.price>0);
+ if(!items.length)return false;
+ const extras=list(r.extras,LIM.extras).map(x=>{const a=money(x.amount),p=money(x.percent),dsc=x.kind==='discount';
+  return a||p?{label:clean(x.label,LIM.label)||(dsc?'Discount':'Charge'),type:a?'amt':'pct',value:String(a||p),sign:dsc?-1:1,mode:'prop',all:true,people:[]}:null}).filter(Boolean);
+ D.items=items;D.extras=extras;
+ const pl=clean(r.place,LIM.place);if(pl&&!D.place.trim())D.place=pl;
+ const dt=str(r.date,10);if(DATE_RE.test(dt)&&!Number.isNaN(Date.parse(dt))&&dt<=today())D.date=dt;
+ const t=money(r.total);if(t)D.total=String(t);
+ files.forEach(f=>{if(D.receipts.length<MAXR)D.receipts.push({file:f,prev:URL.createObjectURL(f)})});
+ const e=extras.length;toast(`Added ${items.length} item${items.length>1?'s':''}${e?` and ${e} fee/discount${e>1?'s':''}`:''}. Check them, then pick who had what.`);
+ return true}
+const scanCard=()=>`<div class="card"><h2>Scan receipt</h2><div class="mu">Take or choose a photo of the receipt to fill in the place, date, items, fees and discounts. You still pick who’s splitting and who had what.</div>
+ <div class="sub"><button id="scb" ${scanning?'disabled':''} ${at('act','scanBtn')}>${scanning?'Reading receipt…':scanArm?'Replace current items? Tap again':SCAN_LBL}</button></div>
+ <input type="file" id="scf" accept="image/*" multiple hidden ${at('ch','scanFiles')}></div>`;
 const eff=x=>x.all?D.attendees:x.people.filter(p=>D.attendees.includes(p));
 const res=()=>({...D,items:D.items.map(i=>({name:i.name,price:parseFloat(i.price)||0,people:eff(i)})),extras:D.extras.map(x=>({label:x.label,type:x.type,value:parseFloat(x.value)||0,sign:x.sign,mode:x.mode,people:eff(x)}))});
 function chips(ids,sel,fn,l,i){return ids.map(id=>`<button type="button" class="chip ${sel.includes(id)?'on':''}" ${l?at('act',fn,l,i,id):at('act',fn,id)}>${esc(nm(id))}</button>`).join('')}
@@ -406,7 +450,7 @@ function vNew(){
  const ex=(x,i)=>`<div class="sub"><div class="row"><input class="g2" maxlength="${LIM.label}" placeholder="Label" value="${esc(x.label)}" ${at('in','exLabel',i)}><input class="g1" inputmode="decimal" maxlength="12" placeholder="Value" value="${esc(x.value)}" ${at('in','exValue',i)}><select style="width:84px;padding-left:12px" ${at('ch','exType',i)}><option value="pct" ${sel(x.type,'pct')}>%</option><option value="amt" ${sel(x.type,'amt')}>₱</option></select><button class="x" ${at('act','exDel',i)}>✕</button></div>
   <div class="row"><select ${at('ch','exSign',i)}><option value="1" ${x.sign>0?'selected':''}>Charge</option><option value="-1" ${x.sign<0?'selected':''}>Discount</option></select><select ${at('ch','exMode',i)}><option value="prop" ${sel(x.mode,'prop')}>Split by spending</option><option value="equal" ${sel(x.mode,'equal')}>Split equally</option></select></div>
   <div class="lb">Applies to</div><div class="chips"><button type="button" class="chip ${x.all?'on':''}" ${at('act','allL','extras',i)}>Everyone</button>${chips(D.attendees,eff(x),'togL','extras',i)}</div></div>`;
- return `<button class="sm" style="margin-bottom:10px" ${at('act','cancelExpense')}>${D.id?'← Cancel edit':'← Expenses'}</button><div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
+ return `<button class="sm" style="margin-bottom:10px" ${at('act','cancelExpense')}>${D.id?'← Cancel edit':'← Expenses'}</button>${scanCard()}<div class="card"><h2>${D.id?'Edit expense':'New expense'}</h2>
  <div class="lb">Category</div><div class="chips">${Object.entries(CAT).map(([k,c])=>`<button type="button" class="chip ${catOf(D)===k?'on':''}" ${at('act','setCat',k)}>${c.icon} ${c.name}</button>`).join('')}</div>
  ${catOf(D)==='custom'?`<label>Category name<input list="cn" maxlength="${LIM.cat}" placeholder="e.g. Groceries, Lodging, Gift" value="${esc(D.catName)}" ${at('in','dCatName')}></label><datalist id="cn">${customs.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`:''}
  <div class="row"><label class="g1">Date<input type="date" value="${esc(D.date)}" ${at('in','dDate')}></label><label class="g1">${catOf(D)==='meal'?'Place':'Description'}<input maxlength="${LIM.place}" placeholder="${esc(C.place)}" value="${esc(D.place)}" ${at('in','dPlace')}></label></div>
@@ -524,7 +568,7 @@ Object.assign(ACT,{
  markPaid:el=>markPaid(A0(el),B0(el),+C0(el)),
  allBal:()=>{bp=null;draw()},
  setPay:el=>setPay(A0(el),B0(el),+C0(el)),
- savePay,saveMeal,addTeam,addMember,addRole,migrate,
+ savePay,saveMeal,addTeam,addMember,addRole,migrate,scanBtn,
  addExpense:()=>{if(D&&D.id)D=null;go('new')},
  fcat:el=>{fcat=A0(el)==='all'||Object.hasOwn(CAT,A0(el))?A0(el):'all';draw()},
  openMealReceipt:el=>openMealReceipt(A0(el),+B0(el)),
@@ -580,6 +624,7 @@ Object.assign(CHG,{
  payFrom:el=>setPayParty('from',el.value),
  payTo:el=>setPayParty('to',el.value),
  pickReceipts:el=>{if(['pay','D'].includes(A0(el)))pickReceipts(el.files,A0(el))},
+ scanFiles:el=>{const fs=[...el.files];el.value='';scanFiles(fs)},
  exType:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].type=el.value==='amt'?'amt':'pct';pv()}},
  exSign:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].sign=+el.value<0?-1:1;pv()}},
  exMode:el=>{const i=ix(D.extras,A0(el));if(i>=0){D.extras[i].mode=el.value==='equal'?'equal':'prop';pv()}},
