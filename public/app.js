@@ -344,7 +344,7 @@ function ml(){
    if(m.total){const d=c.sum-Math.round(m.total*100);h+=d===0?'<p class="ok">✓ Matches the receipt</p>':`<p class="bad">⚠ ${peso(Math.abs(d))} ${d>0?'more':'less'} than the receipt total of ${peso(Math.round(m.total*100))}</p>`}
    h+=`<div class="lb" style="margin-top:12px">Per person</div>`+m.attendees.map(p=>{const r=(L.st[m.id]||{})[p],left=r?r.o-r.paid:0;
     return `<div class="sub"><div class="row"><b class="g1">${esc(nm(p))}</b>${p===m.payer?'<span class="mu">paid the bill</span>':`<button class="sm" ${at('act','cp',m.id,p)}>Copy</button>${left>0?!canPay(p,m.payer)?'':`<button class="sm" ${at('act','markPaid',m.id,p,left)}>Mark paid</button>`:'<span class="ok">✓ Paid</span>'}`}</div>${det(m,p)}</div>`}).join('')+
-   (canMeal(m)?`<div class="row" style="margin-top:12px"><button class="sm" ${at('act','editMeal',m.id)}>Edit</button><button class="sm" ${at('act','delMeal',m.id)}>${dlabel('m'+m.id,'Delete')}</button></div>`:'')+'</div>'}
+   `<div class="row" style="margin-top:12px;justify-content:space-between"><button class="sm" ${at('act','pdfMeal',m.id)}>⬇ PDF</button>${canMeal(m)?`<div class="row" style="margin:0"><button class="sm" ${at('act','editMeal',m.id)}>Edit</button><button class="sm" ${at('act','delMeal',m.id)}>${dlabel('m'+m.id,'Delete')}</button></div>`:''}</div></div>`}
   return h+'</div>'};
  // searching auto-opens the completed section so matches aren't hidden
  const showDone=expd.done||terms.length>0;
@@ -362,6 +362,45 @@ async function markPaid(mid,p,left){const m=meals.find(x=>x.id===mid);
  if(!m||!m.attendees.includes(p)||!Number.isFinite(left)||left<=0||left>=1e9||!members.some(x=>x.id===m.payer)||!canPay(p,m.payer))return toast('Could not save');
  try{await T('payments').add({from:p,to:m.payer,amount:left/100,meal:mid,note:'Marked paid',date:today(),created:Date.now()});toast('Marked as paid')}catch(e){toast('Could not save')}}
 const delMeal=id=>arm('m'+id,()=>T('meals').doc(id).delete().catch(()=>toast('Could not delete')));
+
+/* ---------- PDF export: thermal-receipt roll (80 mm wide, height fits content) ---------- */
+let pdfLib=null;
+const loadPdf=()=>pdfLib||=new Promise((ok,no)=>{const s=document.createElement('script');s.src='vendor/jspdf.umd.min.js';
+ s.onload=()=>window.jspdf?ok(window.jspdf.jsPDF):no(new Error('PDF library missing'));s.onerror=()=>{pdfLib=null;no(new Error('Could not load PDF library'))};document.head.appendChild(s)});
+// Built-in PDF fonts only cover Latin-1, so drop emoji/accents and spell out the peso sign
+const pdfTxt=s=>String(s??'').replace(/₱/g,'P').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7e\xa0-\xff]/g,'').replace(/\s+/g,' ').trim();
+const pPeso=n=>pdfTxt(peso(Math.round(n)));
+function receiptLines(m){
+ const W=36,c=calc(m),L=ledger(),out=[],every=a=>a.length>1&&a.length===m.attendees.length?'Everyone':a.length?a.map(nm).join(', '):'nobody';
+ const wrap=(s,w)=>{const r=[];let l='';pdfTxt(s).split(' ').forEach(x=>{while(x.length>w){if(l){r.push(l);l=''}r.push(x.slice(0,w));x=x.slice(w)}
+  if(!l)l=x;else if(l.length+1+x.length<=w)l+=' '+x;else{r.push(l);l=x}});if(l)r.push(l);return r.length?r:['']};
+ const ctr=(s,b)=>wrap(s,W).forEach(t=>out.push({t:' '.repeat(Math.floor((W-t.length)/2))+t,b}));
+ const lr=(a,v,b,ind=0)=>{const p=' '.repeat(ind),ls=wrap(a,W-ind-v.length-1);ls.forEach((t,i)=>out.push({t:p+(i===ls.length-1?t+' '.repeat(W-ind-t.length-v.length)+v:t),b}))};
+ const sub=s=>wrap(s,W-2).forEach(t=>out.push({t:'  '+t}));
+ const hr=(ch='- ')=>out.push({t:ch.repeat(W).slice(0,W)}),gap=()=>out.push({t:''});
+ ctr('LISTAHAN',true);ctr(tname(cur));gap();ctr(m.place||catName(m),true);ctr(`${m.date} · ${catName(m)}`);ctr('Paid by: '+nm(m.payer));hr();
+ out.push({t:pdfTxt(CAT[catOf(m)].items).toUpperCase(),b:true});
+ m.items.forEach(it=>{lr(it.name||'Item',pPeso(it.price*100));sub(every(it.people))});
+ if(m.extras.length){hr();out.push({t:'FEES, TAX, DISCOUNTS',b:true});
+  m.extras.forEach(x=>{const t=calc({...m,extras:[x]}).sum-calc({...m,extras:[]}).sum;
+   lr(`${x.label||'Extra'} (${x.type==='pct'?num(x.value)+'%':pPeso(x.value*100)}${x.sign<0?' off':''})`,pPeso(t));sub(`${every(x.people)} · ${x.mode==='equal'?'split equally':'by spending'}`)})}
+ hr();lr('BILL TOTAL',pPeso(c.sum),true);
+ if(m.total){const d=c.sum-Math.round(m.total*100);ctr(d===0?'Matches the receipt':`${pPeso(Math.abs(d))} ${d>0?'more':'less'} than receipt total of ${pPeso(m.total*100)}`)}
+ hr('=');out.push({t:'PER PERSON',b:true});
+ m.attendees.forEach((p,i)=>{const r=(L.st[m.id]||{})[p],s=p===m.payer?'Payer':!r?'':r.paid>=r.o?'Paid':r.paid>0?'Partial':'Unpaid',v=pPeso(c.tot[i]);
+  if(i)gap();lr(nm(p),s,true);
+  m.items.forEach(it=>{if(it.people.includes(p)){const k=it.people.length;lr(`${it.name||'Item'}${k>1?` (1/${k} of ${pPeso(it.price*100)})`:''}`,pPeso(it.price*100/k),false,2)}});
+  c.L.filter(l=>l.p===p).forEach(l=>lr(l.label||'Extra',pPeso(l.v),false,2));
+  lr('Total',v,true,2)});
+ hr();const n=new Date();ctr(`Generated ${today()} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`);
+ return out}
+async function pdfMeal(id){const m=meals.find(x=>x.id===id);if(!m)return;
+ try{const J=await loadPdf(),lines=receiptLines(m),fs=9,lh=fs*.3528*1.35,top=8,w=80,h=Math.max(top*2+lines.length*lh,w+1);
+  const doc=new J({unit:'mm',format:[w,h],orientation:'portrait'});doc.setFont('courier','normal');doc.setFontSize(fs);
+  lines.forEach((l,i)=>{doc.setFont('courier',l.b?'bold':'normal');doc.text(l.t,5,top+lh*(i+.75))});
+  const slug=pdfTxt(m.place||catName(m)).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'expense';
+  doc.save(`${m.date||today()}-${slug}.pdf`)}
+ catch(e){console.error('PDF export failed',e);toast('Could not create PDF')}}
 
 /* ---------- add / edit expense ---------- */
 const newDraft=()=>({id:null,category:'meal',catName:'',date:today(),place:'',payer:me||'',attendees:[],items:[{name:'',price:'',all:false,people:[]}],extras:[],total:'',receipts:[]});
@@ -615,6 +654,7 @@ Object.assign(ACT,{
  openMealReceipt:el=>openMealReceipt(A0(el),+B0(el)),
  editMeal:el=>editMeal(A0(el)),
  delMeal:el=>delMeal(A0(el)),
+ pdfMeal:el=>pdfMeal(A0(el)),
  openDraftReceipt:el=>{if(['pay','D'].includes(B0(el)))openDraftReceipt(+A0(el),B0(el))},
  dropReceipt:el=>{if(['pay','D'].includes(B0(el)))dropReceipt(+A0(el),B0(el))},
  togA:el=>togA(A0(el)),
